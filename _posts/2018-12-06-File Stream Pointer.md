@@ -3,8 +3,6 @@ title: File Stream Pointer
 date: 2018-12-07 02:04
 ---
 
-# File_Stream Pointer
-
 House_of_orange를 이해하기 위해서.. pwnable.tw의 seethefile 문제를 풀기 위해서... File Stream 구조를 알아야한다.. 일단 내가 제일 많이 쓰고 있는 우분투 16.04버전 기준이다. 다른 버전은 이것과 동일하지 않을 수 있다.
 
 일단 바로 예제코드로 알아보도록 하자..
