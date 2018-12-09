@@ -3,7 +3,8 @@ title: About me
 ---
 
 ## $ whoami
-burnsix
+burn6
+
 I like pwnable :)
 
 ## $ contact
