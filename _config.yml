@@ -20,3 +20,6 @@ permalink:        /posts/:title
 defaults:
   - values:
       layout: "default"
+
+disqus_url: burnsix.github.io
+disqus_id: jongtae110@gmail.com
