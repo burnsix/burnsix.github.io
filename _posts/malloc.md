@@ -1,0 +1,317 @@
+---
+title: Basic
+date: 2018-12-11 02:04
+---
+
+간단히 malloc에 대해서 알아보자
+
+<br>
+
+##### Arena
+
+malloc()에서 메모리 영역과 메모리 관리 부분을 arena라고 함 
+
+프로세스에 할당된 heap 영역 (non-mmapped)
+
+##### Main Arena
+
+main_arena는 malloc.c에서 struct malloc_state 구조체를 사용하는 변수
+
+```c
+static struct malloc_state main_arena =
+{
+  .mutex = _LIBC_LOCK_INITIALIZER,
+  .next = &main_arena,
+  .attached_threads = 1
+};
+```
+
+해당 구조체를 이용해서 arena의 세부 정보를 보관, 해당 정보를 이용해서 할당된 chunk들을 관리함
+
+```c
+struct malloc_state
+{
+  /* Serialize access.  */
+  mutex_t mutex;
+ 
+  /* Flags (formerly in max_fast).  */
+  int flags;
+ 
+  /* Fastbins */
+  mfastbinptr fastbinsY[NFASTBINS];
+ 
+  /* Base of the topmost chunk -- not otherwise kept in a bin */
+  mchunkptr top;
+ 
+  /* The remainder from the most recent split of a small request */
+  mchunkptr last_remainder;
+ 
+  /* Normal bins packed as described above */
+  mchunkptr bins[NBINS * 2 - 2];
+ 
+  /* Bitmap of bins */
+  unsigned int binmap[BINMAPSIZE];
+ 
+  /* Linked list */
+  struct malloc_state *next;
+ 
+  /* Linked list for free arenas.  Access to this field is serialized
+     by free_list_lock in arena.c.  */
+  struct malloc_state *next_free;
+ 
+  /* Number of threads attached to this arena.  0 if the arena is on
+     the free list.  Access to this field is serialized by
+     free_list_lock in arena.c.  */
+  INTERNAL_SIZE_T attached_threads;
+  
+  /* Memory allocated from the system in this arena.  */
+  INTERNAL_SIZE_T system_mem;
+  INTERNAL_SIZE_T max_system_mem;
+};
+```
+
+bins, fastbinsY, top chunk, remainder, next link, free next link 등 여러가지 정보가 들어가 있다
+
+```c
+gdb-peda$ p main_arena
+$1 = {
+  mutex = 0x0,
+  flags = 0x1,
+  fastbinsY = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0},
+  top = 0x602070,
+  last_remainder = 0x0,
+  bins = {0x7ffff7dd37b8 <main_arena+88>, 0x7ffff7dd37b8 <main_arena+88>, 0x7ffff7dd37c8 <main_arena+104>, 0x7ffff7dd37c8 <main_arena+104>, 0x7ffff7dd37d8 <main_arena+120>, 0x7ffff7dd37d8 <main_arena+120>, 0x7ffff7dd37e8 <main_arena+136>, 0x7ffff7dd37e8 <main_arena+136>, 0x7ffff7dd37f8 <main_arena+152>, 0x7ffff7dd37f8 <main_arena+152>, 0x7ffff7dd3808 <main_arena+168>, 0x7ffff7dd3808 <main_arena+168>,
+   , 0x7ffff7dd3dc8 <main_arena+1640>, 0x7ffff7dd3dc8 <main_arena+1640>, 0x7ffff7dd3dd8 <main_arena+1656>, 0x7ffff7dd3dd8 <main_arena+1656>, 0x7ffff7dd3de8 <main_arena+1672>, 0x7ffff7dd3de8 <main_arena+1672>...},
+  binmap = {0x0, 0x0, 0x0, 0x0},
+  next = 0x7ffff7dd3760 <main_arena>,
+  next_free = 0x0,
+  system_mem = 0x21000,
+  max_system_mem = 0x21000
+}
+```
+
+gdb로 간단하게 확인해 볼 수 있다.
+
+<br>
+
+#### chunk
+
+chunk는 allocated(할당), free(해제), Top, Last Remainder 요렇게 4가지가 있다.
+
+```c
+/*
+  -----------------------  Chunk representations -----------------------
+*/
+ 
+/*
+  This struct declaration is misleading (but accurate and necessary).
+  It declares a "view" into memory allowing access to necessary
+  fields at known offsets from a given base. See explanation below.
+*/
+ 
+struct malloc_chunk {
+  INTERNAL_SIZE_T      prev_size;  /* Size of previous chunk (if free).  */
+  INTERNAL_SIZE_T      size;       /* Size in bytes, including overhead. */
+ 
+  struct malloc_chunk* fd;         /* double links -- used only if free. */
+  struct malloc_chunk* bk;
+ 
+  /* Only used for large blocks: pointer to next larger size.  */
+  struct malloc_chunk* fd_nextsize; /* double links -- used only if free. */
+  struct malloc_chunk* bk_nextsize;
+};
+```
+
+allocated 와 free chunk 는 malloc_chunk 구조체를 이용해 필요한 정보를 저장한다.
+
+<br>
+
+##### allocated chunk
+
+할당 chunk의 최소 크기는 32bit : 16byte, 64bit : 32byte 
+
+prev_size - Size of chunk (+flag bit A M P) - user data - Next chunk(Size of chunk) 뭐 요런 식의  구조를 가지고 있는데 여기서 보면 1 chunk의 user data영역은 2 chunk의 prev_size까지라는 것도 중요한 점이다. 
+
+prev_size : 이전 chunk가 해제되면, 여기에 이전 chunk의 크기가 저장된다. 위에서도 말했듯이 이전 chunk가 할당된다면 이 필드는 이전 chunk의 user data영역 이다.
+
+size : 말그대로 chunk의 size를 지정한다. 추가적으로 flag bit가 있다. 우리가 할당한 size보다 실제 size는 더 크게 설정되어 있는데 chunk header + flag까지 합쳐진 값으로 설정된다.
+
+1. prev_inuse [P] : 이전 chunk가 사용중 이면 설정 된다.
+2. is_mmaped [M] : 현재 chunk가 mmap을 통해 할당된다면 설정된다. (아직 잘은 모르겠지만 힙 익스를 할 때 mmap의 호출은 피하는 것으로 보인다.)
+3. non_main_arena [A] : 현재 chunk가 thread arena에 위치되면 설정된다.
+
+flag는 꼭 알아두어야 하는 부분이다.
+
+64bit 기준 최소 크기가 32byte라고 했는데 malloc(8)로 할당을 받아도 chunk header(prev_size + size) 0x10byte , user data 0x8 byte, Next chunk에 대한 정보를 저장할 공간 0x8 byte 총 최소 32byte가 되는 것이다. 우리가 보통 %p로 보는 주소는 allocated chunk의 user data 영역이다. chunk는 header까지 포함되어 있는 구조체라는 것을 잊으면 안된다. 
+
+<br>
+
+##### free chunk
+
+free chunk 는 allocated와는 조금 다른 구조를 가진다.
+
+prev_size - size - fd(forward pointer) - bk(backward pointer)
+
+prev_size : free chunk 는 연속적으로 붙어 있을 수 없기 때문에 각 chunk를 해제하는 경우 하나의 단일 free chunk로 결합된다(marge), 그렇기 때문에 이 필드는 이전 chunk의 user data를 저장하고 있는다.
+
+size : allocated size와 같다.
+
+fd : 동일한 Bin의 다음 free chunk address를 저장한다.
+
+bk : 동일한 Bin의 이전 Free chunk address를 저장한다.
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+ 
+void main(){
+        char *heap1 = malloc(128);
+        char *tmp2 = malloc(8);
+        char *heap2 = malloc(128);
+        char *tmp3 = malloc(8);
+        char *heap3 = malloc(128);
+        char *tmp1 = malloc(8);
+ 
+        printf("Free chunk : %p\n",heap2);
+        free(heap1);
+        free(heap2);
+        free(heap3);
+        getchar();
+}
+```
+
+예제 코드로 free chunk의 구조를 확인해보자.
+
+```c
+Free chunk : 0x6020c0
+
+gdb-peda$ par
+addr                prev                size                 status              fd                bk                
+0x602000            0x0                 0x90                 Freed     0x7ffff7dd1bf8          0x6020b0
+0x602090            0x90                0x20                 Used                None              None
+0x6020b0            0x0                 0x90                 Freed           0x602000          0x602160
+0x602140            0x90                0x20                 Used                None              None
+0x602160            0x0                 0x90                 Freed           0x6020b0    0x7ffff7dd1bf8
+```
+
+chunk가 병합되지 않도록 중간중간 dummy chunk를 넣어 주었다.
+
+```c
+gdb-peda$ x/12gx 0x6020b0
+0x6020b0:	0x0000000000000000	0x0000000000000091
+0x6020c0:	0x0000000000602000	0x0000000000602160
+
+(0x090)  smallbin[ 7]: 0x602160  <--> 0x6020b0  <--> 0x602000
+```
+
+free된 heap2의 구조이다. prev_inuse flag bit 는 설정되어 있고 fd에 해제된 heap1 주소가 저장되어 있고 bk에 해제된heap2 주소가 저장되어 있다. free list는 double linked list로 이루어져 있다.(smallbin)
+
+<br>
+
+##### top chunk
+
+top chunk 는 arena의 가장 상위에 있는 chunk 이다.
+
+bin에 포함되지 않고 prev_inuse flag가 설정되고 top chunk의 크기가 사용자가 요청한 크기보다 큰 경우 top chunk는 2개로 분리된다. (user chunk(요청한 크기), remainder chunk(나머지 크기))
+
+remainder chunk가 새로운 top chunk가 된다.
+
+top chunk의 크기가 사용자가 요청한 크기보다 작은 경우 syscall을 사용하여 top chunk의 크기를 증가시킨다. sbrk(main arena), mmap(thread arena) 보통 top chunk의 size는 0x21000이다. 사용자 요청한 크기가 0x21000보다 작지만 top chunk 의 size보다 크다면 상위chunk를 확장한다. 0x21000보다 크다면 새로운 heap 영역을 할당한다.
+
+<br>
+
+##### fast chunk, small chunk, large chunk
+
+이름만 봐도 chunk의 size로 구분되는 것이다.
+
+fast chunk : 0x20 ~ 0x80 (64bit) , 32bit 는 반
+
+small chunk : size of user data < 512 
+
+large chunk : size of user data >= 512
+
+간단하다. fast chunk는 정말 유용하게 쓰이고 small, large 같은 경우는 leak과 병합에 잘 사용된다.
+
+<br>
+
+##### Bin
+
+1. fast bin : size는 0x20 ~ 0x80byte 로 Bin의 갯수는 10개이다. 또한 fast bin이 관리하는 free chunk는 서로 인접해 있어도 free chunk가 병합되지 않는다.
+2. small bin : size 는 512 이하, Bin의 갯수는 62개이다. small bin이 관리하는 free chunk는 서로 인접해 있다면 하나의 단일 chunk로 병합된다.
+3. large bin : size는 512 이상, Bin의 갯수는 63개, large bin이 관리하는 free chunk는 서로 인접해 있다면 하나의 단일 chunk로 병합된다.
+4. Unsorted bin : small chunk, large chunk가 처음 free 될 때 unsorted bin에 등록되게 된다. Bin의 갯수는 1개이고 free chunk만 등록 가능하다.
+
+<br>
+
+#### malloc_state
+
+Bin의 정보는 malloc_state 구조체에서 관리된다. 
+
+FastbinsY : fast bin을 괸라한다.
+
+Bins : unsorted bin, small bin, large bin 을 관리한다. (총 126개)
+
+index 1: unsorted bin
+
+index 2~ 63 : small bin
+
+index 64 ~ 126 : large bin
+
+<br>
+
+#### fast bin
+
+fast bin 의 특징
+
+1. LIFO
+2. 10개의 bin
+3. 해제된 fast chunk를 보관
+4. 속도를 위해서 single-linked-list (이것 덕분에 활용하기가 굉장히 편하다.)
+5. fast bin이 처리하는 메모리의 최대 크기(global_max_fast)에 의해 결정된다
+6. free chunk가 서로 인접해 있어도 병합되지 않는다.(!!!)
+
+<br>
+
+#### small bin
+
+small bin 의 특징
+
+1. FIFO
+2. 62개의 bin
+3. 해제된 small chunk 보관
+4. double-linked list (..!)
+5. free chunk가 인접해 있다면 하나의 chunk로 병합된다.
+
+<br>
+
+#### large bin
+
+large bin 의 특징
+
+1. 63개의 bin
+2. 해제된 large chunk 보관
+3. double-linked-list
+4. 해당 index가 나타내는 크기보다 작은 크기의 chunk들도 모두 포함한다.
+5. 4kb를 위한 bin이 있다면 4096byte의 chunk만을 포함하는 것이 아니고 4088, 4000, 3968등의 크기를 가지는 chunk들도 포함한다. 단지 할당의 효율성을 위해 bin내에서 크기 별로 정렬되며 이 때, fd_nextsize와 bk_nextsize필드가 사용된다.
+6. free chunk가 인접해 있다면 하나의 chunk로 병합된다.
+7. 128kb 이상의 큰 메모리 영역은 mmap() syscall을 이용해 별도의 메모리 영역을 할당 후 chunk를 생성한다. 해당 크기의 chunk들은 bin에 속하지 않고 is_mmapped flag가 설정된다. 해당 영역이 free 될 때는 munmap()을 호출한다.
+
+<br>
+
+#### Unsorted bin
+
+unsorted bin 의 특징
+
+1. 1개의 bin
+2. double-linked-list
+3. 해제된 small, large chunk를 보관
+4. 이 bin을 이용해 적절한 bin을 찾는 시간이 적기 때문에 할당과 해제의 처리속도가 빠르다.
+5. chunk의 크기 제한이 없기 때문에 다양한 크기의 chunk가 bin에 저장될 수 있다.
+6. free 된 chunk와 동일한 크기의 영역을 다시 요청하면 해당 영역을 재사용한다.
+7. FIFO
+8. 검색된 chunk는 바로 재할당 되거나 원래의 bin으로 돌아가게 된다.
+9. 해제한 chunk를 재사용하기 위해서 chunk 해제 후 곧 바로 동일한 크기의 chunk를 생성해야 한다.
+
+
+
+여기까지가 기본적인 내용으로 이제 각각 bin들에 대해서 더 자세하게 살펴보자 
