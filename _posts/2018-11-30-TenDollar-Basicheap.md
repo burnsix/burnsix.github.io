@@ -40,7 +40,7 @@ unsigned __int64 sub_A59()
 }
 ```
 
-2번 메뉴인데 아이다 최적화 때문에 printf가 puts로 나온듯 이 메뉴로 릭이 가능하다.
+2번 메뉴로 릭이 가능하다.
 
 ```c
 unsigned __int64 sub_AD2()
@@ -68,28 +68,28 @@ unsigned __int64 sub_AD2()
 
 fake chunk를 할당할 주소는 malloc_hook-35 지점인데 
 
-```assembly
+```c
 gdb-peda$ x/10gx 0x7f189914faed + 35
 0x7f189914fb10 <__malloc_hook>:	0x0000000000000000	0x0000000000000000
 ```
 
 저 malloc_hook 지점에 overwrite를 하기 위해선 일단 malloc_hook - 0x10 지점에 chunk를 할당해야 하는데..
 
-```assembly
+```c
 gdb-peda$ x/10gx 0x7f189914faed + 25
 0x7f189914fb06 <__memalign_hook+6>:	0x7f1898e10a000000	0x0000000000000000
 ```
 
 이 지점에서 보면 size 필드가 0이므로 size error가 나기 때문에 할당을 할 수가 없다. 결국 넣을만한 size 필드를 찾아서 넣어줘야 한다.
 
-```assembly
+```c
 gdb-peda$ x/10gx 0x7f189914faed
 0x7f189914faed <_IO_wide_data_0+301>:	0x189914e260000000	0x000000000000007f
 ```
 
 size 필드가 7f이기 때문에 처음부터 0x60 size의 chunk를 할당해 준 것!
 
-```assembly
+```c
 gdb-peda$ x/2gx 0x7f6373edaaed + 35
 0x7f6373edab10 <__malloc_hook>:	0x00007f6373c07147	0x000000000000000a
 gdb-peda$ x/gx 0x00007f6373c07147
