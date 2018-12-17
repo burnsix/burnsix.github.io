@@ -21,3 +21,6 @@ defaults:
   - values:
       layout: "default"
 
+disqus_shortname:   "burn6"
+comments_enable:    true
+
