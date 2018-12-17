@@ -21,6 +21,6 @@ defaults:
   - values:
       layout: "default"
 
-disqus_shortname:   "burn6"
+disqus_shortname:   "burn6s-world-1"
 comments_enabled:    true
 
