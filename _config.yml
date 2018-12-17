@@ -22,5 +22,5 @@ defaults:
       layout: "default"
 
 disqus_shortname:   "burn6"
-comments_enable:    true
+comments_enabled:    true
 
