@@ -43,7 +43,7 @@
         <div class="markdown-body">
           {{ content }}
         </div>
-        {% if is_post %}{% include signoff.html %}{{% include comments.html %}% endif %}
+        {% if is_post %}{% include signoff.html %}{% include comments.html %}{% endif %}
       </main>
       
       {% if is_post %}{% include pagination.html %}{% endif %}
