@@ -1420,7 +1420,7 @@ void listen(){
 
 }
 
-아이다에서도 0000000000403140 off_403140      dq offset _ZN3Dog5speakEv 이렇게 확인할 수 있는데 아마 저게 맨 처음 포인터 일듯 하다.
+아이다에서도 0000000000403140 off_403140      dq offset _ZN3Dog5speakEv 이렇게 확인할 수 있는데 아마 vtable같은 녀석 아닐까
 ```
 
 이렇게 2개의 주요.. 코드를 보자 일단 virtual void speak()라는 걸로 보면 heap에 포인터가 생길거 같고 strcpy가 있기 때문에 어떻게든 악용가능할 것 같다. 
