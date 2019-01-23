@@ -294,5 +294,5 @@ gdb-peda$ x/32gx 0x602400
 
 틀린 부분은 지적해 주세요!
 
-### 참고 자료 : https://www.lazenca.net/display/TEC/House+of+Orange
+#### 참고 자료 : https://www.lazenca.net/display/TEC/House+of+Orange
 
