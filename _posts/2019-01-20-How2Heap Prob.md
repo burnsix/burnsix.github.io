@@ -126,7 +126,7 @@ gdb-peda$
 0x155f6bff2150:	0x0000000000000020	0x000055d233da8230
 ```
 
-이런식으로 포인터가 설정되어있는데 1 chunk 는 110 을 할당받은 상태다
+포인터가 설정되어있는데 1 chunk 는 110 을 할당받은 상태다
 
 ```c
 gdb-peda$ par
@@ -144,7 +144,7 @@ addr                prev                size                 status             
 0x41b30777d2f0:	0x0000000000000020	0x00005596e0b4d230
 ```
 
-free(1) -> free(0) -> add(0x10) 이런식으로 중간에 더미 fast chunk먼저 해제 하고 small bin 해제 후 다시 fast chunk를 재할당 해보자 0 chunk 가 fast chunk를 반환받았다.
+free(1) -> free(0) -> add(0x10) 중간에 더미 fast chunk먼저 해제 하고 small bin 해제 후 다시 fast chunk를 재할당 해보자 0 chunk 가 fast chunk를 반환받았다.
 
 ```c
 gdb-peda$ par
