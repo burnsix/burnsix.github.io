@@ -1,10 +1,3 @@
-```
----
-title: House Of Orange
-date: 2019-01-15
----
-```
-
 ### House Of Orange
 
 top chunk size overwrite -> allocation request (request size > top chunk size) -> free chunk가 된 old top 에 fake struct overwrite + unsorted bin attack (target -> _IO_list_all)
