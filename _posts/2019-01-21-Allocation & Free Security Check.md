@@ -121,6 +121,6 @@ date: 2019-01-21
 
 아마 glibc 버전에 따라 다를 것이다.(이건 구 버전 2.23~2.25 정도 인듯 함)
 
-##### 참고 자료 : https://heap-exploitation.dhavalkapil.com/diving_into_glibc_heap/security_checks.html
+### 참고 자료 : https://heap-exploitation.dhavalkapil.com/diving_into_glibc_heap/security_checks.html
 
 이 블로그에 자료가 굉장히 많고 좋기 때문에 꼭 보고 정리하는걸 추천!
