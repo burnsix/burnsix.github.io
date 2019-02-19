@@ -880,5 +880,3 @@ uid=1000(bskim)
 ```
 
 그 후엔 똑같이 free_got를 system으로 바꾸고 atoi_got에 sh를 쓰고 2 pointer를 free 해주면 쉘 ! 또 하나의 문제점 이었던거는.. secret 입력할 때 sendline으로 보내버려서 got 덮을 때 계속 에러가 나서 거기서도 시간을 많이 버렸다..(send와 sendline은 진짜 적절하게 잘 써야 함 ㅠ) 그래도 이건 search에 비하면 훠얼씬 수월했다..(메뉴 적은게 체고시다)
-=======
->>>>>>> 1e16c1a09ade2dd41203a6368dd48fec5c760cdf
