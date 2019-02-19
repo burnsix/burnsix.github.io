@@ -629,7 +629,7 @@ t.interactive()
 
 # Hitcon2016 - SleepyHolder
 
-fastbin consolidate을 이용해서 하는 문제다. 이게 뭐냐면 fast chunk를 free 해서 fastbin에 넣은 후 large chunk 를 할당하게 되면 fastbin에 남아있는 상태로 smallbin에도 추가되어 버린다. 더블 프리 시 fast top 검증을 피할 수 있다.
+fastbin consolidate을 이용해서 하는 문제다. 이게 뭐냐면 fast chunk를 free 해서 fastbin에 넣은 후 large chunk 를 할당하게 되면 fastbin에서 smallbin으로 삽입된다. 더블 프리 시 fast top 검증을 피할 수 있다.
 
 이게 정확히 왜 되는지는.. 소스를 보긴 했지만 아직 잘 모르겠다.. (복잡) 
 
