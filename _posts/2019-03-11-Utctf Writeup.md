@@ -3,7 +3,7 @@ title: Utctf Writeup
 date: 2019-03-11
 ---
 
-# pwnable1 (문제 이름을 모르겠다)
+# pwnable1 (Babyecho)
 
 ```c
 int __cdecl __noreturn main(int argc, const char **argv, const char **envp)
