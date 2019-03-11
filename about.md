@@ -2,7 +2,7 @@
 title: About me
 ---
 
-## $ whoami
+## $ Whoami
 burn6
 
 I like pwnable :)
@@ -11,7 +11,7 @@ I like pwnable :)
 
 @Cyberone PT Team
 
-## $ contact
+## $ Contact
 If you want to contact me, please DM. [Twitter](https://twitter.com/_bskim).
 
 ## $ Achievement
