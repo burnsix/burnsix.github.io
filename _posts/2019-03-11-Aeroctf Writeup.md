@@ -155,12 +155,14 @@ s("test_account")
 r("Password:")
 s("test_password")
 r("Enter the OTP code:")
+
 libc = CDLL("/lib/x86_64-linux-gnu/libc.so.6")
 b = libc.time(0)
 log.success("time ==> " + hex(b))
 libc.srand(0x74*2 + b)
 a = libc.rand()
 log.success("rand ==> " + hex(a))
+
 s(a)
 
 r(">")
