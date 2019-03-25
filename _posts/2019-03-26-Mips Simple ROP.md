@@ -53,7 +53,7 @@ date: 2019-03-26
 
 인텔에서 자주보던 push ebp 요런게 없고 바로 sp에서 공간을 비운다. 그리고 0x88_var_4 이런식으로 나오는데 그냥 0x88 - 4 한 값 (왜 저렇게 나오는지..)
 
-```c
+```
 addiu $a,$b $a 를 $b(+-) 만큼 더함
 sw $a,$sp(+-) $a의 값을 $sp+- 에 save word(word로 저장)
 lw $a,$b $b안의 값을 $a에 넣음 load word
@@ -66,7 +66,7 @@ jalr $t9 <-- 이녀석이 제일 중요한데 함수 호출이다 가젯을 쓸 
 
 복잡한 바이너리는 보기 힘들긴 하지만 하나하나 찾아가면서 보면 엄~청 어렵진 않다. 
 
-```c
+```
 레지스터
 v0~v1 : 함수의 리턴 값이라고 하는 것 같음..(자세히 보지 않았다 ㅠ)
 a0~a3 : 함수의 인자로 사용되는 녀석들
@@ -83,8 +83,11 @@ zero : 제로 레지스터인데 무조건 0이다. 뭔가를 0으로 만들때 
 레지스터를 너무 많이 써서 기분이 좋지 않다. mips가 좋지 못한건 ret란게 없단점.. rop할 때 체이닝을 하기가 생각보다 어렵다.. 바이너리자체에 쓸만한 코드가 없다면 많이 제한적이다. 
 
 >gdb.execute('set arch mips')
+>
 >gdb.execute('set endian big')
+>
 >gdb.execute('gef-remote -q localhost:8888')
+>
 >gdb.execute('symbol-file test')
 
 gdb에선 대략 저런 옵션으로 세팅하고 실행하면 된다(gef 기준)
@@ -137,39 +140,65 @@ bin endian이라서 기존과 반대로 넣어줘야한다.. libc 릭이 된다�
 일단 맨처음 ra는 0x4008b0
 
 >.text:004008B0                 lw      $ra, 0x38+var_4($sp)
+>
 >.text:004008B4                 lw      $s5, 0x38+var_8($sp)
+>
 >.text:004008B8                 lw      $s4, 0x38+var_C($sp)
+>
 >.text:004008BC                 lw      $s3, 0x38+var_10($sp)
+>
 >.text:004008C0                 lw      $s2, 0x38+var_14($sp)
+>
 >.text:004008C4                 lw      $s1, 0x38+var_18($sp)
+>
 >.text:004008C8                 lw      $s0, 0x38+var_1C($sp)
->.text:004008CC                 jr      $ra                                                                                                          .text:004008D0                 addiu   $sp, 0x38
+>
+>.text:004008CC                 jr      $ra                                                                                                          
+>
+>.text:004008D0                 addiu   $sp, 0x38
 
 여기서 s 레지스터들에 값을 세팅해준다 오버플로가 나면 순서대로 s~ ra까지 덮을 수 있게 된다.
 
 그리고 다음 ra는
 
 >.text:004008A4                 move    $a0, $s3
+>
 >.text:004008A8                 bne     $s1, $s2, loc_400890
+>
 >.text:004008AC                 addiu   $s0, 4
+>
 >.text:004008B0
+>
 >.text:004008B0 loc_4008B0:                              # CODE XREF: __libc_csu_init+58↑j
+>
 >.text:004008B0                 lw      $ra, 0x38+var_4($sp)
+>
 >.text:004008B4                 lw      $s5, 0x38+var_8($sp)
+>
 >.text:004008B8                 lw      $s4, 0x38+var_C($sp)
+>
 >.text:004008BC                 lw      $s3, 0x38+var_10($sp)
+>
 >.text:004008C0                 lw      $s2, 0x38+var_14($sp)
+>
 >.text:004008C4                 lw      $s1, 0x38+var_18($sp)
+>
 >.text:004008C8                 lw      $s0, 0x38+var_1C($sp)
+>
 >.text:004008CC                 jr      $ra
+>
 >.text:004008D0                 addiu   $sp, 0x38
 
 이렇게 된다 a0에 원하는 값을 넣어 주고 loc_400890을 뛰면
 
 >.text:00400890                 lw      $t9, 0($s0)
+>
 >.text:00400894                 addiu   $s1, 1
+>
 >.text:00400898                 move    $a2, $s5
+>
 >.text:0040089C                 move    $a1, $s4
+>
 >.text:004008A0                 jalr    $t9
 
 puts_got를 인자로 puts를 호출할 수 있게 된다. 호출 후에 다시 쭉 명령어가 이어지면 ra로 점프하기 때문에 다시 main으로 돌려준다.
@@ -177,25 +206,45 @@ puts_got를 인자로 puts를 호출할 수 있게 된다. 호출 후에 다시 
 libc에서 가젯은 
 
 >.text:00136EE4                 lw      $ra, 0x48+var_4($sp)
+>
 >.text:00136EE8                 lw      $fp, 0x48+var_8($sp)
+>
 >.text:00136EEC                 lw      $s7, 0x48+var_C($sp)
+>
 >.text:00136EF0                 lw      $s6, 0x48+var_10($sp)
+>
 >.text:00136EF4                 lw      $s5, 0x48+var_14($sp)
+>
 >.text:00136EF8                 lw      $s4, 0x48+var_18($sp)
+>
 >.text:00136EFC                 lw      $s3, 0x48+var_1C($sp)
+>
 >.text:00136F00                 lw      $s2, 0x48+var_20($sp)
+>
 >.text:00136F04                 lw      $s1, 0x48+var_24($sp)
+>
 >.text:00136F08                 lw      $s0, 0x48+var_28($sp)
+>
 >.text:00136F0C                 jr      $ra
+>
 >.text:00136F10                 addiu   $sp, 0x48
+>
 >.text:00136F14  # ---------------------------------------------------------------------------
+>
 >.text:00136F14
+>
 >.text:00136F14 loc_136F14:                              # CODE XREF: sub_136CA0+88↑j
+>
 >.text:00136F14                                          # sub_136CA0+C0↑j ...
+>
 >.text:00136F14                 lw      $a1, 0($s0)
+>
 >.text:00136F18                 move    $a0, $s1
+>
 >.text:00136F1C                 lw      $a2, 0($s7)
+>
 >.text:00136F20                 move    $t9, $s3
+>
 >.text:00136F24                 jalr    $t9
 
 먼저 s 레지스터와 ra에 값 세팅 해주고 ra는 00136F14로 설정해서 쉘을 딸 수 있다.. 아니면 addiu와 move를 잘 이용하면 쉘코드도 실행시킬 수 있다(임베디드 리눅스에서 nx와 canary가 설정되있지 않은 바이너리는 상당히 많다고 한다.)
