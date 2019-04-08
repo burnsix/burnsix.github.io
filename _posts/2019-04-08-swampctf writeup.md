@@ -1,5 +1,5 @@
 ---
-title: swampctf writeup
+title: Swampctf Writeup
 date: 2019-04-08
 ---
 
