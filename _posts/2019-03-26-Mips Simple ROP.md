@@ -58,7 +58,7 @@ addiu $a,$b $a 를 $b(+-) 만큼 더함
 sw $a,$sp(+-) $a의 값을 $sp+- 에 save word(word로 저장)
 lw $a,$b $b안의 값을 $a에 넣음 load word
 li constant 를 load
-la string을 load
+la address load
 move $a,$b 는 $b를 $a로 이동
 jr intel의 jmp와 같음
 jalr $t9 <-- 이녀석이 제일 중요한데 함수 호출이다 가젯을 쓸 때 ra는 웬만하면 건드리기 힘들기 때문에 이녀석을 사용해서 원하는 함수를 호출해야함
