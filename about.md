@@ -19,6 +19,10 @@ If you want to contact me, please DM. [Twitter](https://twitter.com/_bskim).
 
 2019 SWAMPCTF 58th @Mashiro
 
-2019 BYTEBANDITSCTF 13th @Eagle Jump
+2019 BYTEBANDITS CTF 13th @Eagle Jump
 
-2019 ASISCTF 37th @Harekaze
+2019 ASIS CTF 37th @Harekaze
+
+2019 DEFCON CTF Qualifier 22th @$TLDR$
+
+2019 SECURITYFEST CTF 23th @burn6
