@@ -1,6 +1,6 @@
 ---
 title: Secfestctf Writeup
-date: 2019-06-125
+date: 2019-06-25
 ---
 
 ### Baby6
